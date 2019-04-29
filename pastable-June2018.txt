@@ -624,6 +624,19 @@ Check for folders such as C:\Program Files\ for "Create Files" or "Append Data" 
 # If you can write to a dir that a service calls a dll from you win...
 # HKLM/System/CurrentControlSet/Services
 # If you can set a value or a subkey on any of these you are going to be system soon
+--------------------------------------------------------------------------
+Source: https://toshellandback.com/2015/11/24/ms-priv-esc/
+
+# Unquoted Winddows Services... quick win!
+# In short - if a dev creates a service and fails to enclose the service path in quotes
+# it will try each word prior to a space as a separate file.  Example:
+# C:\Program Files\Some Folder\Service.exe
+# It will try: C:\Program.exe; C:\Program Files\Some.exe; C:\Program Files\Some Folder\Service.exe
+# The goal here is write a malicious payload into one of those spots...
+
+# Locate such a service
+wmic service get name,displayname,pathname,startmode |findstr /i "Auto" |findstr /i /v "C:\Windows\\" |findstr /i /v """
+
 
 
 
