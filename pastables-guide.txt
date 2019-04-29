@@ -78,12 +78,15 @@ PORT SCANNING (All ports for both TCP/UDP)
 # As of Mar 19:
 # It has been found to be much faster to use masscan then pass the ports to nmap for service enumeration.
 
-masscan -p1-65535,U:1-65535 $tgt --rate=1000 -e tun0 |tee masscan-all-tcp-and-udp.txt
+masscan -p1-65535,U:1-65535 $tgt --rate=1000 -e tun0 |tee masscan-all-tcp-and-udp.out
 cat masscan-all-tcp-and-udp.txt | grep tcp| awk '{print $4}'| cut -d / -f1 |sort n > tcp-ports
 cat masscan-all-tcp-and-udp.txt | grep udp| awk '{print $4}'| cut -d / -f1 |sort n > udp-ports
 nmap -v -n --reason -p <TCP Ports> -sT -sC -sV $tgt -oA services-tcp
 nmap -v -n --reason -p <UDP Ports> -sU -sC -sV $tgt -oA services-udp
 
+----------Always follow up with this--------------
+# Enum4linux is a wrapper around rpcclient, net, nmblookup and smbclient
+enum4linux -a -v $tgt |tee enum4linux-a-v.out
 
 -----------------------------Previous Methodology--------------------
 # Nmap is the old trusty go to. Unicorn is much faster (especially for UDP) but alledlky
@@ -119,21 +122,53 @@ openssl s_client -connect $tgt:443
 By Port
 Start breaking tools down by port/protocol/service
 ****************************************************
-21- ftp 
+-------------------------------------------
+21- ftp
+
+ftp $tgt
+nc -nvv $tgt 21
+nmap --script=
+
 -------------------------------------------
 22 - ssh
+
+ssh root@$tgt
+nc -nvv $tgt 22
+nmap --script=
+
+
+
 -------------------------------------------
 23 - telnet
+
+telnet root@$tgt
+nmap --script=
+
 -------------------------------------------
 25 - smtp
+
+
 -------------------------------------------
 53 - DNS
+
+
 -------------------------------------------
 80 - http
+amap $tgt 80
+nikto -host $tgt -port $tgtPort
+
 -------------------------------------------
 161 - snmp
+
+snnpwalk ???
+snmpcheck ???
+nmap --script=
+
 -------------------------------------------
 443 - ssl
+openssl s_client -connect $tgt:443
+
+
 -------------------------------------------
 ?
 -------------------------------------------
@@ -174,7 +209,7 @@ rpcclient -U "" $tgt
 >getdompwinfo
 
 #enum4linux does the above rpcclient checks
-enum4linux -v $tgt
+enum4linux -a -v $tgt |tee enum4linux-a-v.out
 
 nmap -p 139,445 --script s,b-enum-users $tgt
 
