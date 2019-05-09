@@ -180,6 +180,11 @@ curl -v http://$tgt/webpage
 echo -e "HEAD / HTTP/1.1 \r" |nc -nvv $tgt 80
 
 -------------------------------------------
+135 - RPC
+# See what remote clients can interact with
+showmount -e $tgt
+
+-------------------------------------------
 161 - snmp
 # Look for:  If this pops it dumps a TON of OS info and user info
 # Can also allow you to WRITE configs into the device... looking at you Cisco
@@ -194,7 +199,18 @@ openssl s_client -connect $tgt:443
 
 
 -------------------------------------------
-?
+445 SMB
+# What can we mount unathenticated with Null Sessions?
+# Do we have creds to enum that users shares?
+
+# Check null
+smbclient -L //$tgt -N
+
+# Mount Up...
+smbclient //TARGET/Backups -I $tgt -N
+#or
+mount -t cifs //$tgt ip/Backups /media/ -o username=NULL
+
 -------------------------------------------
 ?
 -------------------------------------------
@@ -325,6 +341,21 @@ anonymous
 
 ORACLE isql
 SYSTEM SYSTEM
+
+Default Usernames and Passwords
+
+CIRT
+http://www.cirt.net/passwords
+
+Government Security - Default Logins and Passwords for Networked Devices
+
+http://www.governmentsecurity.org/articles/DefaultLoginsandPasswordsforNetworkedDevices.php
+
+Virus.org
+http://www.virus.org/default-password/
+
+Default Password
+http://www.defaultpassword.com/
 
 ============================================================================================
 				                    SHELLS
@@ -1259,20 +1290,8 @@ hydra -L usernames.txt -e sn -t 1 ftp://172.17.0.150
 hydra -L users.txt -e sn -t 1 $tgt ssh
 
 
-Default Usernames and Passwords
-
-CIRT
-http://www.cirt.net/passwords
-
-Government Security - Default Logins and Passwords for Networked Devices
-
-http://www.governmentsecurity.org/articles/DefaultLoginsandPasswordsforNetworkedDevices.php
-
-Virus.org
-http://www.virus.org/default-password/
-
-Default Password
-http://www.defaultpassword.com/
+# Offline Attacks of the Windows Sam (example inside backup of windows in /Winsows/System32/Config/)
+samdump2 SYSTEM SAM > hashes.txt
 
 
 hash-identifier
