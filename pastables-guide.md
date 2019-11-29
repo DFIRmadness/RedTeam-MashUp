@@ -42,9 +42,23 @@ packages used below that may not be included by default in Kali
 
 ### 2019.4 Setting up Non-Root Kali
 
-To run a web app as a regular user (don't drive around target boxes or the web with a browser run as root)
+Running dual user setup. Better security to run as reg user and upgrade as needed. Also allows Vscode to work.
 
-`something`
+From the root account:
+1. `useradd -d /home/newuser/ -m -s /bin/bash newuser`
+2. `usermod -aG sudo newuser`
+3. `passwd newuser`
+
+Login as the new user and run Sparta as root:
+1. `sudo xhost +`
+2. `sudo su root`
+3. `sparta`
+4. When done `xhost -`
+
+Running as root and downgrading to reg user to run FireFox
+1. `xhost +`
+2. `su newuser -c firefox`
+3. `xhost -`
 
 ### Setting up Non-Root Kali (Older versions)
 
