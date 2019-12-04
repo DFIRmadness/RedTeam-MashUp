@@ -315,9 +315,15 @@ Look for:  If this pops it dumps a TON of OS info and user info
 
 Can also allow you to WRITE configs into the device... looking at you Cisco
 
-snnpwalk ???
-snmpcheck ???
-nmap --script=
+snmp-check- mad loot if the target offers snmp with a public string
+
+```bash
+snmp-check $tgt
+
+snmpwalk -v 1 -c public $tgt
+```
+
+Nmap Script?
 
 ### 443 - ssl
 openssl s_client -connect $tgt:443
@@ -327,17 +333,32 @@ What can we mount unathenticated with Null Sessions?
 
 Do we have creds to enum that users shares?
 
-#### Check null
+look at users with sessions open on target; look for the <03> flag
+```bash
+nmblookup -A $tgt
+```
+Enum Null Sessions Share; On a certain box... here was one of the <03> flags
+```bash
+smbclient -L //<machine name> -I $tgt -N
+```
+Connect to //[name of <03>]/[name of share]
+```bash
+smbclient //<machine name>/wwwroot -I $tgt -N
+```
+
+Check null
+```bash
 smbclient -L \\\\$tgt -N
+```
 
-#### Mount Up...
-
-`smbclient ////TARGET/Backups -I $tgt -N`
-
+Mount Up...
+```bash
+smbclient ////TARGET/Backups -I $tgt -N
+```
 or
-
-`mount -t cifs //$tgt ip/Backups /media/ -o username=NULL`
-
+```bash
+mount -t cifs //$tgt ip/Backups /media/ -o username=NULL
+```
 ### 1433 - SQL
 
 `nmap -p 1433 --script ms-sql-info --script-args mssql.instance-port=1433 $tgt`
@@ -375,34 +396,28 @@ enum4linux -a -v $tgt |tee enum4linux-a-v.out
 ***
 Scanning Misc.
 
-#snmp-check- mad loot if the target offers snmp with a public string
-snmp-check $tgt
-
-snmpwalk -v 1 -c public $tgt
-
-#look at users with sessions open on target; look for the <03> flag
-nmblookup -A $tgt
-
-#Enum Null Sessions Share; On a certain box... here was one of the <03> flags
-smbclient -L //<machine name> -I $tgt -N
-
-#Connect to //[name of <03>]/[name of share]
-smbclient //<machine name>/wwwroot -I $tgt -N
-
+Nbtscan a range of hosts
+```bash
 nbtscan 10.11.1.1-254
+```
 
-#null session enum
+Null session enum
+```bash
 rpcclient -U "" $tgt
 >srvinfo
 >enumdomusers
 >getdompwinfo
+```
 
-#enum4linux does the above rpcclient checks
+enum4linux does the above rpcclient checks
+```bash
 enum4linux -a -v $tgt |tee enum4linux-a-v.out
+```
 
-nmap -p 139,445 --script s,b-enum-users $tgt
-
-unicornscan -i tap0 -E -m U $tgt:a > unicornUDPfull
+Nmap Script
+```bash
+nmap -p 139,445 --script smb-enum-users $tgt
+```
 
 ***
 
