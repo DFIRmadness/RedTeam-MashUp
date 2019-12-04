@@ -10,7 +10,7 @@ A Pastables File: A quick reference sheet to cut and paste from.
 
 `/join #offsec`
 
-How to "save" the IP Address of a target and pass it in CLI
+### How to "save" the IP Address of a target and pass it in CLI
 
 `export tgt=<targets IP>` and then test it, `echo $tgt`
 
